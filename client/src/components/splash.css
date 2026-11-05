@@ -1,0 +1,184 @@
+/* Opening logo animation. Black logo on the light theme, white on the dark theme. */
+.sp-root {
+  --sp-bg: #fbf7f2;
+  --sp-ink: #000;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--sp-bg);
+  transition: opacity 450ms ease, visibility 450ms;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  .sp-root {
+    --sp-bg: #0b0b0f;
+    --sp-ink: #fff;
+  }
+}
+:root[data-theme='dark'] .sp-root {
+  --sp-bg: #0b0b0f;
+  --sp-ink: #fff;
+}
+:root[data-theme='light'] .sp-root {
+  --sp-bg: #fbf7f2;
+  --sp-ink: #000;
+}
+.sp-root.sp-leaving {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sp-wrap {
+  width: min(94vw, 1100px);
+  overflow: visible;
+}
+.sp-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.sp-name {
+  font-family: 'Montserrat', Arial, sans-serif;
+  font-weight: 900;
+  font-size: 84px;
+  letter-spacing: 1px;
+  fill: var(--sp-ink);
+  opacity: 0;
+}
+.sp-heart {
+  fill: #f01836;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+.sp-tagline {
+  font-family: 'Pacifico', 'Brush Script MT', cursive;
+  font-size: 57px;
+  fill: #f01836;
+  opacity: 0;
+}
+.sp-swash {
+  fill: none;
+  stroke: var(--sp-ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 230;
+  stroke-dashoffset: 230;
+}
+.sp-glow {
+  filter: drop-shadow(0 0 5px rgba(240, 24, 54, 0.18));
+}
+
+/* The animation only starts once the two logo fonts are loaded, so the text never flashes in a fallback font. */
+.sp-go .sp-left {
+  animation: sp-enter-left 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s forwards;
+}
+.sp-go .sp-right {
+  animation: sp-enter-right 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s forwards;
+}
+.sp-go .sp-heart {
+  animation:
+    sp-heart-pop 0.65s cubic-bezier(0.2, 1.6, 0.4, 1) 1.05s forwards,
+    sp-heartbeat 1.8s ease-in-out 1.8s infinite;
+}
+.sp-go .sp-heart.sp-heart-2 {
+  animation-delay: 1.2s, 2s;
+}
+.sp-go .sp-tagline {
+  animation: sp-rise-in 0.8s ease-out 1.45s forwards;
+}
+.sp-go .sp-swash {
+  animation: sp-draw 0.75s ease-out 1.75s forwards;
+}
+.sp-go .sp-swash.sp-swash-right {
+  animation-delay: 1.95s;
+}
+
+@keyframes sp-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-75px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes sp-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(75px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes sp-heart-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.15) rotate(-18deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.18) rotate(4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes sp-heartbeat {
+  0%,
+  72%,
+  100% {
+    transform: scale(1);
+  }
+  78% {
+    transform: scale(1.09);
+  }
+  84% {
+    transform: scale(1);
+  }
+  90% {
+    transform: scale(1.06);
+  }
+}
+@keyframes sp-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes sp-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-name,
+  .sp-heart,
+  .sp-tagline {
+    opacity: 1;
+  }
+  .sp-swash {
+    stroke-dashoffset: 0;
+  }
+  .sp-go .sp-left,
+  .sp-go .sp-right,
+  .sp-go .sp-heart,
+  .sp-go .sp-tagline,
+  .sp-go .sp-swash {
+    animation: none;
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "@pos/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:reset": "tsx src/db/seed.ts --reset",
+    "menu:load": "tsx src/db/loadMenu.ts",
+    "auth:setup": "tsx src/auth/setup.ts",
+    "db:backup": "tsx src/backup/cli.ts backup",
+    "db:backups": "tsx src/backup/cli.ts list",
+    "db:restore": "tsx src/backup/cli.ts restore",
+    "tls:setup": "tsx src/tls/setup.ts"
+  },
+  "dependencies": {
+    "@peculiar/x509": "^2.2.0",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "drizzle-orm": "^0.45.4",
+    "express": "^5.3.0",
+    "reflect-metadata": "^0.2.2",
+    "socket.io": "^4.8.4",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.11",
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.3.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Praveen Pranks — Two Hearts Cafe Logo Animation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Pacifico&family=Montserrat:wght@700;800;900&display=swap');
+
+  /* Transparent by design: no page or logo background is painted. */
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: transparent;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+  }
+  .logo-wrap {
+    width: min(94vw, 1100px);
+    overflow: visible;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .name {
+    font-family: 'Montserrat', Arial, sans-serif;
+    font-weight: 900;
+    font-size: 84px;
+    letter-spacing: 1px;
+    fill: #fff;
+    opacity: 0;
+  }
+  .left-name { animation: enter-left .85s cubic-bezier(.2,.8,.2,1) .15s forwards; }
+  .right-name { animation: enter-right .85s cubic-bezier(.2,.8,.2,1) .45s forwards; }
+  .heart {
+    fill: #f01836;
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0;
+    animation: heart-pop .65s cubic-bezier(.2,1.6,.4,1) 1.05s forwards,
+               heartbeat 1.8s ease-in-out 1.8s infinite;
+  }
+  .tagline {
+    font-family: 'Pacifico', 'Brush Script MT', cursive;
+    font-size: 57px;
+    fill: #f01836;
+    opacity: 0;
+    animation: rise-in .8s ease-out 1.45s forwards;
+  }
+  .swash {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 230;
+    stroke-dashoffset: 230;
+    animation: draw .75s ease-out 1.75s forwards;
+  }
+  .swash.right { animation-delay: 1.95s; }
+  .soft-glow {
+    filter: drop-shadow(0 0 5px rgba(240,24,54,.18));
+  }
+  @keyframes enter-left {
+    from { opacity: 0; transform: translateX(-75px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes enter-right {
+    from { opacity: 0; transform: translateX(75px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes heart-pop {
+    0% { opacity: 0; transform: scale(.15) rotate(-18deg); }
+    70% { opacity: 1; transform: scale(1.18) rotate(4deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  @keyframes heartbeat {
+    0%, 72%, 100% { transform: scale(1); }
+    78% { transform: scale(1.09); }
+    84% { transform: scale(1); }
+    90% { transform: scale(1.06); }
+  }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+    }
+    .name, .heart, .tagline { opacity: 1; }
+    .swash { stroke-dashoffset: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="logo-wrap" role="img" aria-label="Praveen Pranks — Two Hearts Cafe">
+    <svg viewBox="0 0 1200 330" xmlns="http://www.w3.org/2000/svg">
+      <g class="soft-glow">
+        <text class="name left-name" x="65" y="145">PRAVEEN</text>
+
+        <!-- Two red hearts, matching the signboard mark -->
+        <path class="heart" d="M600 91
+          C578 55 523 62 523 108
+          C523 145 568 177 600 204
+          C632 177 677 145 677 108
+          C677 62 622 55 600 91Z"/>
+        <path class="heart" d="M680 100
+          C662 72 620 78 620 114
+          C620 143 655 168 680 189
+          C705 168 740 143 740 114
+          C740 78 698 72 680 100Z" style="animation-delay:1.2s, 2s"/>
+
+        <text class="name right-name" x="760" y="145">PRANKS</text>
+
+        <path class="swash" d="M78 228 C155 192 210 250 288 218"/>
+        <path class="swash right" d="M915 218 C990 250 1045 192 1122 228"/>
+
+        <text class="tagline" x="600" y="250" text-anchor="middle">Two Hearts Cafe</text>
+      </g>
+    </svg>
+  </div>
+</body>
+</html>

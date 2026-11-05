@@ -1,0 +1,413 @@
+@import "tailwindcss";
+
+/*
+ * Modern Cafe Design tokens (Purr'Coffee warm terracotta & porcelain aesthetic).
+ * Clean, warm peach-orange accents, smooth squircle cards, rounded-full pill controls,
+ * and high-contrast typography.
+ */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Neutrals: warm cozy porcelain canvas & pure white surfaces */
+  --color-canvas: #fbf7f2;
+  --color-surface: #ffffff;
+  --color-subtle: #f5eee6;
+  --color-fill: #f1eae1;
+  --color-fill-strong: #e6ded3;
+  --color-line: rgba(230, 222, 211, 0.85);
+  --color-line-strong: #d4c8b9;
+  --color-ink: #1e293b;
+  --color-ink-2: #64748b;
+  --color-ink-3: #94a3b8;
+
+  /* Palette: Warm Terracotta / Peach-Orange (#ff8548, #f07436) */
+  --color-accent: #ff8548;
+  --color-accent-hover: #f07436;
+  --color-accent-tint: #ffede3;
+  --color-accent-wash: #fff8f5;
+  --color-brand-deep: #ea580c;
+  --color-brand-rose: #fb923c;
+  --color-brand-pink: #f97316;
+  --color-brand-soft: #fff7ed;
+
+  /* Semantic status colors */
+  --color-success: #10b981;
+  --color-success-hover: #059669;
+  --color-success-tint: #d1fae5;
+  --color-warning: #f59e0b;
+  --color-warning-tint: #fef3c7;
+  --color-danger: #ef4444;
+  --color-danger-tint: #fee2e2;
+  --color-veg: #10b981;
+  --color-nonveg: #ef4444;
+
+  --radius-control: 16px;
+  --radius-card: 24px;
+
+  --shadow-card: 0 4px 20px -2px rgba(30, 41, 59, 0.04), 0 0 0 1px rgba(30, 41, 59, 0.04);
+  --shadow-raised: 0 16px 36px -6px rgba(255, 133, 72, 0.22), 0 0 0 1px rgba(255, 133, 72, 0.1);
+  --shadow-control: 0 2px 6px rgba(30, 41, 59, 0.05), 0 0 0 1px rgba(30, 41, 59, 0.04);
+  --shadow-toast: 0 20px 42px -8px rgba(30, 41, 59, 0.22), 0 0 0 1px rgba(30, 41, 59, 0.08);
+
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Micro-interactions: responsive and snappy */
+  --animate-enter: enter 220ms var(--ease-out-soft) both;
+  --animate-fade: fade 160ms ease-out both;
+  --animate-tick: tick 260ms var(--ease-out-soft);
+  --animate-toast-in: toast-in 240ms var(--ease-out-soft) both;
+  --animate-toast-out: toast-out 160ms ease-in both;
+  --animate-card-rise: card-rise 420ms var(--ease-out-soft) both;
+  --animate-bar-rise: bar-rise 550ms cubic-bezier(0.34, 1.25, 0.64, 1) both;
+
+  @keyframes card-rise {
+    from {
+      opacity: 0;
+      transform: translateY(16px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  --animate-sheet-up: sheet-up 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-sheet-down: sheet-down 200ms ease-in both;
+  --animate-pop: pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-float: float 7s ease-in-out infinite;
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+      opacity: 0.6;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  @keyframes sheet-down {
+    from {
+      transform: none;
+    }
+    to {
+      transform: translateY(100%);
+      opacity: 0.6;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -14px, 0);
+    }
+  }
+  @keyframes bar-rise {
+    from {
+      transform: scaleY(0);
+      opacity: 0.4;
+    }
+    to {
+      transform: scaleY(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes tick {
+    0% {
+      transform: translateY(-3px);
+      opacity: 0.4;
+    }
+    100% {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    max-width: 100vw;
+    overflow: hidden;
+  }
+  #root {
+    height: 100dvh;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+  body {
+    @apply bg-canvas font-sans text-[15px] text-ink antialiased;
+    font-feature-settings: "kern";
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    @apply cursor-pointer select-none;
+  }
+  button:disabled {
+    @apply cursor-not-allowed;
+  }
+  ::placeholder {
+    color: var(--color-ink-3);
+    opacity: 1;
+  }
+
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+}
+
+/* Glassmorphism & Modern Soft UI utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 24px -2px rgba(30, 41, 59, 0.05), 0 0 0 1px rgba(30, 41, 59, 0.03);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 20px -2px rgba(30, 41, 59, 0.04), 0 0 0 1px rgba(30, 41, 59, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.96);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px -4px rgba(30, 41, 59, 0.09), 0 0 0 1px rgba(30, 41, 59, 0.05);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Receipt print styles
+ * ------------------------------------------------------------------------- */
+#print-root {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    height: auto !important;
+  }
+  #root {
+    display: none !important;
+  }
+  #print-root {
+    display: block !important;
+  }
+}
+
+.receipt {
+  color: #000;
+  background: #fff;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.receipt-compact {
+  width: 80mm;
+  padding: 4mm;
+  font-size: 9.5pt;
+}
+.receipt-a4 {
+  width: 120mm;
+  padding: 15mm 0;
+  font-size: 11pt;
+}
+.receipt-head {
+  text-align: center;
+}
+.receipt-head h1 {
+  font-size: 1.35em;
+  font-weight: 700;
+  margin: 0 0 2pt;
+}
+.receipt-head p {
+  margin: 0;
+}
+.receipt-title {
+  margin: 8pt 0 2pt;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+.receipt-stamp {
+  margin: 2pt auto 4pt;
+  width: fit-content;
+  border: 1.5pt solid #000;
+  padding: 1pt 8pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.receipt-meta {
+  margin: 6pt 0;
+  padding: 4pt 0;
+  border-top: 1pt dashed #000;
+}
+.receipt-meta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8pt;
+}
+.receipt-meta dt {
+  font-weight: 400;
+}
+.receipt-meta dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+}
+.receipt table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.receipt th,
+.receipt td {
+  padding: 1.5pt 0;
+  vertical-align: top;
+  text-align: left;
+}
+.receipt .num {
+  text-align: right;
+  white-space: nowrap;
+  padding-left: 6pt;
+}
+.receipt-items thead th {
+  border-top: 1pt dashed #000;
+  border-bottom: 1pt dashed #000;
+  font-weight: 600;
+}
+.receipt-totals {
+  margin-top: 4pt;
+  border-top: 1pt dashed #000;
+}
+.receipt-grand td {
+  border-top: 1pt solid #000;
+  padding-top: 3pt;
+  font-size: 1.2em;
+  font-weight: 700;
+}
+.receipt-footer {
+  margin: 8pt 0 0;
+  text-align: center;
+}
+.receipt-printed {
+  margin: 6pt 0 0;
+  text-align: center;
+  font-size: 0.8em;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

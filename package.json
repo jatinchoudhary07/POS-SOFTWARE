@@ -1,0 +1,37 @@
+{
+  "name": "pos-software",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Simple restaurant POS for a single restaurant on a local network",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "build": "npm run build --workspace client",
+    "start": "npm run start --workspace server",
+    "db:generate": "npm run db:generate --workspace server",
+    "db:migrate": "npm run db:migrate --workspace server",
+    "db:seed": "npm run db:seed --workspace server",
+    "db:reset": "npm run db:reset --workspace server",
+    "menu:load": "npm run menu:load --workspace server",
+    "test": "npm run test --workspace server && npm run test --workspace client",
+    "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace client",
+    "setup": "npm install && npm run db:migrate && npm run menu:load",
+    "build:start": "npm run build && npm start",
+    "auth:setup": "npm run auth:setup --workspace server --",
+    "db:backup": "npm run db:backup --workspace server",
+    "db:backups": "npm run db:backups --workspace server",
+    "db:restore": "npm run db:restore --workspace server --",
+    "tls:setup": "npm run tls:setup --workspace server --"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
