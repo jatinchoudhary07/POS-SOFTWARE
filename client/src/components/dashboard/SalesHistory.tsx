@@ -1,3 +1,4 @@
+// @refresh reset
 import { ArrowDownLeft, ArrowUpRight, Loader2, Search, ShoppingBag, UtensilsCrossed, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../../api/client';
@@ -6,6 +7,7 @@ import { cx } from '../../lib/cx';
 import { formatPaise } from '../../lib/money';
 import { useLiveOrders } from '../../state/LiveOrders';
 import { toKey } from './dates';
+import { OrderDetailSheet } from './OrderDetailSheet';
 
 const PAGE = 40;
 
@@ -74,6 +76,7 @@ export function SalesHistory({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(isSuperadmin);
   const [error, setError] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const latest = useRef(0);
   const multiDay = from !== to;
 
@@ -208,7 +211,7 @@ export function SalesHistory({
       ) : (
         <ul className="mt-3 space-y-2.5">
           {rows.map((r, i) => (
-            <HistoryItem key={r.id} row={r} multiDay={multiDay} index={i} onOpen={() => onOpenOrder(r.id)} />
+            <HistoryItem key={r.id} row={r} multiDay={multiDay} index={i} onOpen={() => setDetailId(r.id)} />
           ))}
         </ul>
       )}
@@ -231,6 +234,8 @@ export function SalesHistory({
           )}
         </div>
       )}
+
+      {detailId !== null && <OrderDetailSheet orderId={detailId} onClose={() => setDetailId(null)} onOpenBill={onOpenOrder} />}
     </section>
   );
 }

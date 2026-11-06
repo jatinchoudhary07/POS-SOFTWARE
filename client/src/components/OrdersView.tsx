@@ -28,21 +28,22 @@ import { formatPaise } from '../lib/money';
 import { formatClock, formatElapsed } from '../lib/time';
 import { useNow } from '../lib/useNow';
 import { useLiveOrders } from '../state/LiveOrders';
-import { isActive, recentOrders } from '../state/orders';
+import { recentOrders } from '../state/orders';
 import { useStatusAction } from '../state/useStatusAction';
 import { CancelOrderSheet, EditOrderSheet } from './OrderCorrections';
 import { useReceiptPrinter } from './ReceiptPrinter';
-import { Button, IconButton, pressable } from './ui/Button';
+import { Button, IconButton } from './ui/Button';
 import { ConnectionBanner } from './ui/ConnectionBanner';
+import { FilterMenu } from './ui/FilterMenu';
 import { PaymentBadge } from './ui/PaymentBadge';
 import { useToast } from './ui/Toast';
 
 const FILTERS = [
-  { key: 'READY', label: 'Ready', icon: BellRing, activeClass: 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500/30' },
-  { key: 'PREPARING', label: 'Preparing', icon: Flame, activeClass: 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-500/30' },
-  { key: 'NEW', label: 'Sent to kitchen', icon: Send, activeClass: 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500/30' },
-  { key: 'COMPLETED', label: 'Served', icon: CheckCheck, activeClass: 'bg-ink text-surface shadow-sm' },
-  { key: 'ALL', label: 'All', icon: LayoutGrid, activeClass: 'bg-surface text-ink shadow-sm ring-1 ring-line' },
+  { key: 'READY', label: 'Ready', icon: BellRing, tone: 'text-emerald-600' },
+  { key: 'PREPARING', label: 'Preparing', icon: Flame, tone: 'text-amber-500' },
+  { key: 'NEW', label: 'Sent to kitchen', icon: Send, tone: 'text-blue-600' },
+  { key: 'COMPLETED', label: 'Served', icon: CheckCheck, tone: 'text-slate-600' },
+  { key: 'ALL', label: 'All orders', icon: LayoutGrid, tone: 'text-slate-500' },
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]['key'];
@@ -336,21 +337,17 @@ export function OrdersView({ highlightId, onCheckout }: { highlightId: number | 
   const now = useNow(10_000);
   // Default view is set to READY as requested
   const [filter, setFilter] = useState<FilterKey>('READY');
-  const [timeScope, setTimeScope] = useState<'today' | 'all'>('today');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  // Filter to today's orders by default, while keeping any active kitchen tickets
+  // This tab is for today only; earlier orders are in Sales -> Order history.
   const scopedOrders = useMemo(() => {
-    if (timeScope === 'all') return orders;
     const filtered = new Map<number, LiveOrder>();
     for (const [id, o] of orders.entries()) {
-      if (isActive(o) || isCreatedToday(o.createdAt)) {
-        filtered.set(id, o);
-      }
+      if (isCreatedToday(o.createdAt)) filtered.set(id, o);
     }
     return filtered;
-  }, [orders, timeScope]);
+  }, [orders, now]);
 
   const counts = useMemo(() => {
     const c: Partial<Record<OrderStatus, number>> = {};
@@ -384,7 +381,7 @@ export function OrdersView({ highlightId, onCheckout }: { highlightId: number | 
   return (
     <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
       {/* Top Header Bar - Apple Glassmorphism */}
-      <div className="border-b border-white/70 bg-white/70 px-4 py-3.5 backdrop-blur-2xl sm:px-6 shadow-[0_1px_12px_rgba(15,23,42,0.02)]">
+      <div className="relative z-20 border-b border-white/70 bg-white/70 px-4 py-3.5 backdrop-blur-2xl sm:px-6 shadow-[0_1px_12px_rgba(15,23,42,0.02)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -394,7 +391,7 @@ export function OrdersView({ highlightId, onCheckout }: { highlightId: number | 
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-slate-900">Orders</h1>
                 <p className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                  <span>{scopedOrders.size} {timeScope === 'today' ? 'today' : 'total'}</span>
+                  <span>{scopedOrders.size} today</span>
                   <span>&bull;</span>
                   <span className="text-amber-600 font-semibold">{(counts.READY ?? 0) + (counts.PREPARING ?? 0) + (counts.NEW ?? 0)} active in kitchen</span>
                 </p>
@@ -413,37 +410,13 @@ export function OrdersView({ highlightId, onCheckout }: { highlightId: number | 
             </div>
           </div>
 
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-            {/* Time Scope Toggle: Today (default) vs All Time */}
-            <div role="group" aria-label="Order timeframe" className="flex rounded-full bg-slate-200/60 p-1 border border-white/70 backdrop-blur-md shadow-2xs shrink-0">
-              <button
-                type="button"
-                onClick={() => setTimeScope('today')}
-                className={cx(
-                  'rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer',
-                  timeScope === 'today' ? 'bg-white text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.08)]' : 'text-slate-600 hover:text-slate-900',
-                )}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeScope('all')}
-                className={cx(
-                  'rounded-full px-3 py-1 text-xs font-bold transition-all cursor-pointer',
-                  timeScope === 'all' ? 'bg-white text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.08)]' : 'text-slate-600 hover:text-slate-900',
-                )}
-              >
-                All Time
-              </button>
-            </div>
-
+          <div className="flex items-center gap-2">
             {/* Search Input */}
-            <div className="relative w-full sm:w-44 md:w-56">
+            <div className="relative min-w-0 flex-1 sm:w-56 sm:flex-none">
               <Search size={15} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search order #, table, dish..."
+                placeholder="Search orders…" aria-label="Search by order number, table or dish"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-9.5 w-full rounded-full bg-slate-100/80 hover:bg-slate-100 border border-slate-200/60 focus:border-slate-400 focus:bg-white pr-8 pl-9.5 text-xs sm:text-sm text-slate-900 outline-none backdrop-blur-md shadow-2xs transition-all"
@@ -460,44 +433,13 @@ export function OrdersView({ highlightId, onCheckout }: { highlightId: number | 
               )}
             </div>
 
-            {/* Status Filter Tabs (Ready -> Preparing -> Sent to kitchen -> Served -> All) */}
-            <div role="radiogroup" aria-label="Filter by status" className="no-scrollbar flex overflow-x-auto rounded-full bg-slate-200/60 p-1 border border-white/70 backdrop-blur-md shadow-2xs">
-              {FILTERS.map((f) => {
-                const active = filter === f.key;
-                const count = f.key === 'ALL' ? scopedOrders.size : (counts[f.key] ?? 0);
-                const Icon = f.icon;
-
-                return (
-                  <button
-                    key={f.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setFilter(f.key)}
-                    className={cx(
-                      'inline-flex h-7.5 items-center gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer',
-                      pressable,
-                      active ? f.activeClass : 'text-slate-600 hover:text-slate-900',
-                    )}
-                  >
-                    <Icon size={13} aria-hidden />
-                    <span>{f.label}</span>
-                    <span
-                      className={cx(
-                        'rounded-full px-1.5 py-0.2 text-[11px] font-bold tabular-nums',
-                        active && f.key !== 'ALL'
-                          ? 'bg-white/25 text-white'
-                          : active
-                            ? 'bg-slate-200 text-slate-900'
-                            : 'bg-white/80 text-slate-600 border border-slate-200/60',
-                      )}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* Status filter: a dropdown, on the same line as the search */}
+            <FilterMenu
+              label="Filter by status"
+              value={filter}
+              onChange={setFilter}
+              options={FILTERS.map((f) => ({ value: f.key, label: f.label, icon: f.icon, tone: f.tone, count: f.key === 'ALL' ? scopedOrders.size : (counts[f.key] ?? 0) }))}
+            />
 
             <div className="hidden sm:block">
               <IconButton
@@ -575,19 +517,8 @@ export function OrdersView({ highlightId, onCheckout }: { highlightId: number | 
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-fill text-ink-3">
                   <ClipboardList size={26} aria-hidden />
                 </span>
-                <p className="mt-3 text-base font-bold text-ink">
-                  {timeScope === 'today' ? 'No orders today' : 'No orders found'}
-                </p>
-                <p className="mt-1 text-xs text-ink-2">
-                  {timeScope === 'today'
-                    ? 'Orders placed today will appear here as they are processed.'
-                    : 'New orders placed from POS or dining tables will appear here.'}
-                </p>
-                {timeScope === 'today' && orders.size > scopedOrders.size && (
-                  <Button size="sm" variant="secondary" onClick={() => setTimeScope('all')} className="mt-3">
-                    View all past orders ({orders.size})
-                  </Button>
-                )}
+                <p className="mt-3 text-base font-bold text-ink">No orders today</p>
+                <p className="mt-1 text-xs text-ink-2">Orders placed today will appear here. Earlier orders are in Sales, under Order history.</p>
               </>
             )}
           </div>

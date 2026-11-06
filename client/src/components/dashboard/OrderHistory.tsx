@@ -9,6 +9,7 @@ import { inputClass } from '../ui/fields';
 import { PaymentBadge } from '../ui/PaymentBadge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { fromKey } from './dates';
+import { OrderDetailSheet } from './OrderDetailSheet';
 
 const PAGE = 50;
 type PayFilter = '' | 'PAID' | 'UNPAID' | 'REFUNDED' | 'UNCERTAIN' | 'FAILED' | 'CANCELLED';
@@ -28,7 +29,7 @@ const when = (iso: string, multiDay: boolean) => {
   return multiDay ? `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${t}` : t;
 };
 
-/** Every order in the chosen dates, newest first, with search and filters. Click one to open its bill. */
+/** Every order in the chosen dates, newest first, with search and filters. Click one to see its details. */
 export function OrderHistory({ from, to, onOpenOrder }: { from: string; to: string; onOpenOrder: (orderId: number) => void }) {
   const [q, setQ] = useState('');
   const [payment, setPayment] = useState<PayFilter>('');
@@ -37,6 +38,7 @@ export function OrderHistory({ from, to, onOpenOrder }: { from: string; to: stri
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const latest = useRef(0);
   const multiDay = from !== to;
 
@@ -96,7 +98,7 @@ export function OrderHistory({ from, to, onOpenOrder }: { from: string; to: stri
             const Icon = r.orderType === 'DINE_IN' ? UtensilsCrossed : ShoppingBag;
             return (
               <li key={r.id}>
-                <button type="button" onClick={() => onOpenOrder(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-subtle sm:px-5">
+                <button type="button" onClick={() => setDetailId(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-subtle sm:px-5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill text-ink-2">
                     <Icon size={18} aria-hidden />
                   </span>
@@ -141,6 +143,8 @@ export function OrderHistory({ from, to, onOpenOrder }: { from: string; to: stri
           </Button>
         )}
       </div>
+
+      {detailId !== null && <OrderDetailSheet orderId={detailId} onClose={() => setDetailId(null)} onOpenBill={onOpenOrder} />}
     </section>
   );
 }
