@@ -5,6 +5,7 @@ import type { ManagedCategory, MenuItem } from '../api/types';
 import { parseRupeesToPaise, paiseToInput } from '../lib/amounts';
 import { cx } from '../lib/cx';
 import { formatPaise } from '../lib/money';
+import { useSortable } from '../lib/useSortable';
 import { BottomSheet } from './ui/BottomSheet';
 import { Button } from './ui/Button';
 import { inputClass, labelClass } from './ui/fields';
@@ -49,65 +50,31 @@ export function MenuManager() {
   // Two-step delete: the first click arms it, the second confirms.
   const [armed, setArmed] = useState<string | null>(null);
 
-  // Drag and drop: what is being dragged (an item or a category id) and where it would land.
-  const [drag, setDrag] = useState<{ kind: 'item' | 'cat'; id: number } | null>(null);
-  const [over, setOver] = useState<number | null>(null);
-
-  /** Moves `id` to the spot of `targetId` (or to the very top when targetId is null), saves, and keeps the screen in step. */
-  async function reorder(kind: 'item' | 'cat', id: number, targetId: number | null) {
+  /** Saves a new order (the ids of the categories, or of the open category's items) and keeps the screen in step. */
+  async function saveOrder(kind: 'item' | 'cat', ids: number[]) {
     if (!cats) return;
-    const move = <T extends { id: number }>(list: T[]): T[] => {
-      const from = list.findIndex((x) => x.id === id);
-      if (from < 0) return list;
-      const next = list.filter((x) => x.id !== id);
-      const to = targetId === null ? 0 : next.findIndex((x) => x.id === targetId);
-      next.splice(to < 0 ? 0 : to + (from < list.findIndex((x) => x.id === targetId) ? 1 : 0), 0, list[from]);
-      return next;
-    };
     const before = cats;
-    let ids: number[];
-    if (kind === 'cat') {
-      const next = move(cats);
-      setCats(next);
-      ids = next.map((c) => c.id);
-    } else {
-      const owner = cats.find((c) => c.items.some((i) => i.id === id));
-      if (!owner) return;
-      const items = move(owner.items);
-      setCats(cats.map((c) => (c.id === owner.id ? { ...c, items } : c)));
-      ids = items.map((i) => i.id);
-    }
+    const sorted = <T extends { id: number }>(list: T[]): T[] => {
+      const by = new Map(list.map((x) => [x.id, x]));
+      const wanted = ids.flatMap((id) => (by.has(id) ? [by.get(id)!] : []));
+      return [...wanted, ...list.filter((x) => !ids.includes(x.id))];
+    };
+    const owner = kind === 'item' ? cats.find((c) => c.id === selected) : null;
+    if (kind === 'item' && !owner) return;
+    setCats(kind === 'cat' ? sorted(cats) : cats.map((c) => (c.id === owner!.id ? { ...c, items: sorted(c.items) } : c)));
     try {
       if (kind === 'cat') await api.reorderCategories(ids);
-      else await api.reorderItems(cats.find((c) => c.items.some((i) => i.id === id))!.id, ids);
+      else await api.reorderItems(owner!.id, ids);
     } catch (e) {
       setCats(before);
       toast({ tone: 'error', title: 'Could not save the new order', description: e instanceof ApiError ? e.message : undefined });
     }
   }
-  const dragProps = (kind: 'item' | 'cat', id: number) => ({
-    draggable: !query || kind === 'cat',
-    onDragStart: (e: React.DragEvent) => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', String(id));
-      setDrag({ kind, id });
-    },
-    onDragOver: (e: React.DragEvent) => {
-      if (drag?.kind !== kind) return;
-      e.preventDefault();
-      setOver(id);
-    },
-    onDrop: (e: React.DragEvent) => {
-      e.preventDefault();
-      if (drag?.kind === kind && drag.id !== id) void reorder(kind, drag.id, id);
-      setDrag(null);
-      setOver(null);
-    },
-    onDragEnd: () => {
-      setDrag(null);
-      setOver(null);
-    },
-  });
+  /** Puts one item first in the open category. */
+  const moveToTop = (itemId: number) => {
+    const open = cats?.find((c) => c.id === selected);
+    if (open) void saveOrder('item', [itemId, ...open.items.map((i) => i.id).filter((id) => id !== itemId)]);
+  };
 
   async function load() {
     try {
@@ -130,6 +97,14 @@ export function MenuManager() {
   }, [cats, cat, query]);
   const editingItem = typeof editing === 'number' ? (cats?.flatMap((c) => c.items).find((i) => i.id === editing) ?? null) : null;
   const categoryName = (id: number) => cats?.find((c) => c.id === id)?.name ?? '';
+
+  // Hold and drag to reorder: categories along the top, items inside the open category (not while searching).
+  const catIds = useMemo(() => (cats ?? []).map((c) => c.id), [cats]);
+  const itemIds = useMemo(() => (query.trim() ? [] : (cat?.items ?? []).map((i) => i.id)), [cat, query]);
+  const catSort = useSortable({ ids: catIds, onReorder: (ids) => void saveOrder('cat', ids), disabled: busy });
+  const itemSort = useSortable({ ids: itemIds, onReorder: (ids) => void saveOrder('item', ids), disabled: busy || !!query.trim() });
+  const orderedCats = catSort.order.flatMap((id) => cats?.find((c) => c.id === id) ?? []);
+  const orderedItems = query.trim() ? shownItems : itemSort.order.flatMap((id) => shownItems.find((i) => i.id === id) ?? []);
 
   /** Runs one change, reloads the list, and reports problems from the server in a toast. */
   async function run(action: () => Promise<unknown>, done?: string): Promise<boolean> {
@@ -247,13 +222,13 @@ export function MenuManager() {
     <div className="space-y-4 w-full min-w-0 max-w-full">
       <section className="space-y-3 rounded-card bg-surface p-4 sm:p-5 shadow-card w-full min-w-0 max-w-full" aria-label="Categories">
         <h3 className="font-semibold">Categories</h3>
-        <div className="no-scrollbar flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
-          {cats.map((c) => (
+        <div ref={catSort.containerRef} className="no-scrollbar flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+          {orderedCats.map((c) => (
             <button
               key={c.id}
               type="button"
-              {...dragProps('cat', c.id)}
-              title="Drag to change the order"
+              {...catSort.itemProps(c.id)}
+              title="Hold and drag to change the order"
               onClick={() => {
                 setSelected(c.id);
                 setQuery('');
@@ -262,11 +237,11 @@ export function MenuManager() {
                 setArmed(null);
               }}
               className={cx(
+                catSort.itemProps(c.id).className,
                 'h-8 sm:h-9 shrink-0 rounded-full px-3 sm:px-3.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors',
                 c.id === selected && !query ? 'bg-accent text-white' : 'bg-fill text-ink-2 hover:text-ink',
                 !c.isActive && 'opacity-60',
-                drag?.kind === 'cat' && drag.id === c.id && 'opacity-40',
-                drag?.kind === 'cat' && over === c.id && drag.id !== c.id && 'ring-2 ring-accent',
+                catSort.draggingId === c.id && 'ring-2 ring-accent',
               )}
             >
               {c.name} <span className="opacity-70">· {c.items.length}</span>
@@ -336,20 +311,16 @@ export function MenuManager() {
         {shownItems.length === 0 ? (
           <p className="py-6 text-center text-sm text-ink-2">{query ? 'No item matches.' : cat ? 'No items in this category yet.' : 'Add a category to start.'}</p>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-            {shownItems.map((item, i) => (
-              <li
-                key={item.id}
-                {...dragProps('item', item.id)}
-                className={cx('animate-card-rise min-w-0', drag?.id === item.id && drag.kind === 'item' && 'opacity-40')}
-                style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
-              >
+          <ul ref={itemSort.containerRef} className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {orderedItems.map((item, i) => (
+              <li key={item.id} {...itemSort.itemProps(item.id)} className={cx('min-w-0', itemSort.itemProps(item.id).className)}>
                 <button
                   type="button"
                   onClick={() => startItem(item)}
+                  style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
                   className={cx(
-                    'group flex h-full min-h-[132px] w-full flex-col rounded-[22px] bg-subtle p-3.5 text-left ring-1 ring-line transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface hover:shadow-raised active:scale-[0.97]',
-                    drag?.kind === 'item' && over === item.id && drag.id !== item.id && 'ring-2 ring-accent',
+                    'animate-card-rise group flex h-full min-h-[132px] w-full flex-col rounded-[22px] bg-subtle p-3.5 text-left ring-1 ring-line transition-[background-color,box-shadow,transform] duration-200 hover:bg-surface hover:shadow-raised active:scale-[0.97]',
+                    itemSort.draggingId === item.id && 'bg-surface ring-2 ring-accent',
                   )}
                 >
                   <span className="flex items-center justify-between gap-2">
@@ -372,7 +343,7 @@ export function MenuManager() {
             ))}
           </ul>
         )}
-        <p className="text-sm text-ink-2">Tap an item to edit it. Drag cards to reorder (or use Move to top inside); the order screen follows this order. Changes apply to new orders. Bills and orders already made keep the name and price they were sold at.</p>
+        <p className="text-sm text-ink-2">Tap an item to edit it. To reorder, press and hold a card (or a category) for a moment, then drag it; the screen scrolls by itself near the top and bottom edge. Or use Move to top inside; the order screen follows this order. Changes apply to new orders. Bills and orders already made keep the name and price they were sold at.</p>
       </section>
 
       {editing !== null && (
@@ -401,7 +372,7 @@ export function MenuManager() {
               <button
                 type="button"
                 disabled={busy || !!query || shownItems[0]?.id === editingItem.id}
-                onClick={() => void reorder('item', editingItem.id, null)}
+                onClick={() => moveToTop(editingItem.id)}
                 className="flex flex-col items-center gap-1 rounded-2xl bg-fill px-2 py-3 text-xs font-semibold text-ink-2 transition-all active:scale-95 disabled:opacity-40"
               >
                 <ArrowUpToLine size={18} />
