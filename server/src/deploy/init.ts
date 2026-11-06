@@ -16,6 +16,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { count, eq, sql } from 'drizzle-orm';
 import { config } from '../config';
 import { openDatabase, runMigrations } from '../db/client';
@@ -25,12 +26,14 @@ import { hashPassword } from '../lib/password';
 
 // SEED_DB: a ready-made database (a snapshot of real data) to start from when this server's disk is empty.
 const seedFile = process.env.SEED_DB ? path.resolve(process.cwd(), process.env.SEED_DB) : '';
-// SEED_DB_B64_FILE: the same snapshot stored as base64 text (for hosts that only accept text secret files).
+// SEED_DB_B64_FILE: the same snapshot stored as base64 text, optionally gzip-compressed (for hosts that only accept small text secret files).
 const seedB64 = process.env.SEED_DB_B64_FILE ? path.resolve(process.cwd(), process.env.SEED_DB_B64_FILE) : '';
 let restored = false;
 if (seedB64 && config.databasePath !== ':memory:' && fs.existsSync(seedB64) && !fs.existsSync(config.databasePath)) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
-  fs.writeFileSync(config.databasePath, Buffer.from(fs.readFileSync(seedB64, 'utf8').replace(/\s+/g, ''), 'base64'), { mode: 0o644 });
+  let bytes = Buffer.from(fs.readFileSync(seedB64, 'utf8').replace(/\s+/g, ''), 'base64');
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) bytes = zlib.gunzipSync(bytes); // the snapshot may be gzip-compressed to fit a size limit
+  fs.writeFileSync(config.databasePath, bytes, { mode: 0o644 });
   restored = true;
 } else if (seedFile && config.databasePath !== ':memory:' && fs.existsSync(seedFile) && !fs.existsSync(config.databasePath)) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
