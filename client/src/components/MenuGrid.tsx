@@ -1,7 +1,8 @@
-import { Ban, Plus, Search, SearchX, X } from 'lucide-react';
+import { Ban, Minus, Plus, Search, SearchX, X } from 'lucide-react';
 import type { MenuItem } from '../api/types';
 import { cx } from '../lib/cx';
 import { formatPaise } from '../lib/money';
+import { MAX_QTY } from '../state/cart';
 import { AnimatedValue } from './ui/AnimatedValue';
 
 interface Props {
@@ -12,6 +13,8 @@ interface Props {
   search: string;
   onSearchChange: (s: string) => void;
   onAdd: (item: MenuItem) => void;
+  onIncrement: (item: MenuItem) => void;
+  onDecrement: (item: MenuItem) => void;
 }
 
 function VegMark({ veg }: { veg: boolean }) {
@@ -31,30 +34,40 @@ function VegMark({ veg }: { veg: boolean }) {
   );
 }
 
-function BasicItemCard({ item, inCart, onAdd }: { item: MenuItem; inCart: number; onAdd: () => void }) {
+function BasicItemCard({
+  item,
+  inCart,
+  onAdd,
+  onIncrement,
+  onDecrement,
+}: {
+  item: MenuItem;
+  inCart: number;
+  onAdd: () => void;
+  onIncrement: () => void;
+  onDecrement: () => void;
+}) {
   const unavailable = !item.isAvailable;
 
   return (
-    <button
-      type="button"
-      disabled={unavailable}
-      onClick={onAdd}
-      aria-label={`${item.name}, ${formatPaise(item.pricePaise)}${unavailable ? ', unavailable' : inCart ? `, ${inCart} in order` : ''}`}
+    <div
       className={cx(
-        'group relative flex min-h-[116px] flex-col rounded-[18px] p-3.5 text-left transition-all duration-150 cursor-pointer select-none border',
+        'group relative flex min-h-[116px] flex-col rounded-[18px] p-3.5 text-left transition-all duration-150 select-none border',
         unavailable
           ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
           : inCart > 0
             ? 'bg-white border-[#ff8548] shadow-sm ring-1 ring-[#ff8548]'
-            : 'bg-white border-slate-200/80 hover:border-slate-400 hover:shadow-sm active:scale-[0.98]',
+            : 'bg-white border-slate-200/80 hover:border-slate-400 hover:shadow-sm',
       )}
     >
-      {inCart > 0 && (
-        <span className="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#ff8548] px-1.5 text-xs font-bold text-white shadow-sm ring-2 ring-white">
-          <AnimatedValue value={inCart} />
-        </span>
-      )}
-
+      {/* Tapping the name area adds one more. */}
+      <button
+        type="button"
+        disabled={unavailable}
+        onClick={onAdd}
+        aria-label={`${item.name}, ${formatPaise(item.pricePaise)}${unavailable ? ', unavailable' : inCart ? `, ${inCart} in order. Tap to add one more` : '. Tap to add'}`}
+        className="flex flex-col text-left outline-none enabled:cursor-pointer focus-visible:ring-2 focus-visible:ring-[#ff8548]/50 rounded-lg"
+      >
       {/* Top Row: Veg Mark + Name */}
       <span className="flex items-start gap-2">
         <span className="mt-0.5">
@@ -71,9 +84,10 @@ function BasicItemCard({ item, inCart, onAdd }: { item: MenuItem; inCart: number
           {item.description}
         </span>
       )}
+      </button>
 
-      {/* Bottom Row: Price + Add Button */}
-      <span className="mt-auto flex items-center justify-between pt-3">
+      {/* Bottom Row: Price + Add button, or the quantity stepper once it is in the order */}
+      <span className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-2 pt-3">
         <span className={cx('text-base font-extrabold tabular-nums', unavailable ? 'text-slate-400' : 'text-slate-900')}>
           {formatPaise(item.pricePaise)}
         </span>
@@ -81,13 +95,41 @@ function BasicItemCard({ item, inCart, onAdd }: { item: MenuItem; inCart: number
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
             <Ban size={12} aria-hidden /> Out
           </span>
-        ) : (
-          <span className="inline-flex h-7.5 items-center gap-1 rounded-full bg-[#ffede3] pr-3 pl-2 text-xs font-bold text-[#ff8548] transition-colors group-hover:bg-[#ff8548] group-hover:text-white">
-            <Plus size={14} strokeWidth={2.5} aria-hidden /> Add
+        ) : inCart > 0 ? (
+          <span role="group" aria-label={`${item.name} quantity`} className="ml-auto inline-flex h-8 items-center rounded-full bg-[#ff8548] text-white shadow-sm animate-pop">
+            <button
+              type="button"
+              onClick={onDecrement}
+              aria-label={inCart === 1 ? `Remove ${item.name}` : `One less ${item.name}`}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-black/10 active:bg-black/20"
+            >
+              <Minus size={15} strokeWidth={3} aria-hidden />
+            </button>
+            <span className="min-w-5 text-center text-sm font-extrabold tabular-nums" aria-live="polite">
+              <AnimatedValue value={inCart} />
+            </span>
+            <button
+              type="button"
+              onClick={onIncrement}
+              disabled={inCart >= MAX_QTY}
+              aria-label={`One more ${item.name}`}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-black/10 active:bg-black/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus size={15} strokeWidth={3} aria-hidden />
+            </button>
           </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={`Add ${item.name}`}
+            className="inline-flex h-7.5 cursor-pointer items-center gap-1 rounded-full bg-[#ffede3] pr-3 pl-2 text-xs font-bold text-[#ff8548] transition-colors hover:bg-[#ff8548] hover:text-white active:scale-95"
+          >
+            <Plus size={14} strokeWidth={2.5} aria-hidden /> Add
+          </button>
         )}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -99,6 +141,8 @@ export function MenuGrid({
   search,
   onSearchChange,
   onAdd,
+  onIncrement,
+  onDecrement,
 }: Props) {
   return (
     <section aria-label="Menu items" className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#fbf7f2]/50">
@@ -154,6 +198,8 @@ export function MenuGrid({
                 item={item}
                 inCart={quantities.get(item.id) ?? 0}
                 onAdd={() => onAdd(item)}
+                onIncrement={() => onIncrement(item)}
+                onDecrement={() => onDecrement(item)}
               />
             ))}
           </div>

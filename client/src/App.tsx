@@ -262,6 +262,8 @@ export default function App() {
                 search={search}
                 onSearchChange={setSearch}
                 onAdd={(item) => dispatch({ type: 'add', item })}
+                onIncrement={(item) => dispatch({ type: 'increment', menuItemId: item.id })}
+                onDecrement={(item) => dispatch({ type: 'decrement', menuItemId: item.id })}
               />
               <CartBar cart={cart} onOpen={() => setOrderSheetOpen(true)} />
             </div>
