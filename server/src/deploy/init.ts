@@ -28,10 +28,12 @@ import { hashPassword } from '../lib/password';
 const seedFile = process.env.SEED_DB ? path.resolve(process.cwd(), process.env.SEED_DB) : '';
 // SEED_DB_B64_FILE: the same snapshot stored as base64 text, optionally gzip-compressed (for hosts that only accept small text secret files).
 const seedB64 = process.env.SEED_DB_B64_FILE ? path.resolve(process.cwd(), process.env.SEED_DB_B64_FILE) : '';
+// SEED_DB_GZ_B64: the same thing as an environment variable (gzip + base64), for hosts with no usable secret files.
+const seedEnv = process.env.SEED_DB_GZ_B64 ?? '';
 let restored = false;
-if (seedB64 && config.databasePath !== ':memory:' && fs.existsSync(seedB64) && !fs.existsSync(config.databasePath)) {
+if ((seedEnv || (seedB64 && fs.existsSync(seedB64))) && config.databasePath !== ':memory:' && !fs.existsSync(config.databasePath)) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
-  let bytes = Buffer.from(fs.readFileSync(seedB64, 'utf8').replace(/\s+/g, ''), 'base64');
+  let bytes = Buffer.from((seedEnv || fs.readFileSync(seedB64, 'utf8')).replace(/\s+/g, ''), 'base64');
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) bytes = zlib.gunzipSync(bytes); // the snapshot may be gzip-compressed to fit a size limit
   fs.writeFileSync(config.databasePath, bytes, { mode: 0o644 });
   restored = true;
