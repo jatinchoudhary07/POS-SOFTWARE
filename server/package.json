@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "node scripts/start.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -18,7 +18,8 @@
     "db:backup": "tsx src/backup/cli.ts backup",
     "db:backups": "tsx src/backup/cli.ts list",
     "db:restore": "tsx src/backup/cli.ts restore",
-    "tls:setup": "tsx src/tls/setup.ts"
+    "tls:setup": "tsx src/tls/setup.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --packages=external --target=node22 --outfile=dist/server.mjs"
   },
   "dependencies": {
     "@peculiar/x509": "^2.2.0",

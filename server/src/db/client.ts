@@ -8,7 +8,10 @@ import * as schema from './schema';
 
 export type DB = BetterSQLite3Database<typeof schema>;
 
-const MIGRATIONS_FOLDER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../drizzle');
+// MIGRATIONS_DIR lets a bundled build (server/dist) point at the migrations folder.
+const MIGRATIONS_FOLDER = process.env.MIGRATIONS_DIR
+  ? path.resolve(process.cwd(), process.env.MIGRATIONS_DIR)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../drizzle');
 
 /**
  * Opens (or creates) the SQLite database file.

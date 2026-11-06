@@ -26,7 +26,8 @@
     "db:backup": "npm run db:backup --workspace server",
     "db:backups": "npm run db:backups --workspace server",
     "db:restore": "npm run db:restore --workspace server --",
-    "tls:setup": "npm run tls:setup --workspace server --"
+    "tls:setup": "npm run tls:setup --workspace server --",
+    "build:cloud": "npm run build && npm run build --workspace server"
   },
   "engines": {
     "node": ">=22.12"

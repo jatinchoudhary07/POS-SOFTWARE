@@ -187,7 +187,7 @@ export function createApp({
   return { app, events, auth };
 }
 
-export const defaultStaticDir = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../client/dist',
-);
+// STATIC_DIR lets a bundled build (server/dist) point at the built front end.
+export const defaultStaticDir = process.env.STATIC_DIR
+  ? path.resolve(process.cwd(), process.env.STATIC_DIR)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');

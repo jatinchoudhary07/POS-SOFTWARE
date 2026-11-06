@@ -10,3 +10,6 @@ server/data/
 coverage/
 .DS_Store
 *.tsbuildinfo
+
+# Snapshot of real data used to seed a hosted demo. Never commit.
+server/seed/

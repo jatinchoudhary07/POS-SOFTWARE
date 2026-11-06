@@ -9,6 +9,9 @@ import { config } from './config';
 import { openDatabase, runMigrations } from './db/client';
 import { attachRealtime } from './realtime';
 
+// Hosted demo only (DEMO_INIT=1): make sure a fresh disk has the menu, logins and tables before starting.
+if (process.env.DEMO_INIT === '1') await import('./deploy/init');
+
 const dbExisted = fs.existsSync(config.databasePath);
 const { db, sqlite } = openDatabase(config.databasePath);
 
