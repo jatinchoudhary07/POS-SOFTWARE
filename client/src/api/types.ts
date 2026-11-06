@@ -271,22 +271,6 @@ export interface KitchenOrder {
 export type LiveOrder = Order | KitchenOrder;
 export const isFullOrder = (o: LiveOrder): o is Order => 'subtotalPaise' in o;
 
-// --- Backups (Day 5) ---------------------------------------------------------
-export interface BackupInfo {
-  enabled: boolean;
-  status?: {
-    dir: string;
-    intervalHours: number;
-    keepDays: number;
-    minKeep: number;
-    lastSuccess: { at: string; file: string; sizeBytes: number } | null;
-    lastError: { at: string; message: string } | null;
-    lastSkipped: { at: string; reason: string } | null;
-    count: number;
-  };
-  files?: { name: string; sizeBytes: number; createdAt: string; reason: string }[];
-}
-
 // --- Owner dashboard (Superadmin) --------------------------------------------
 
 export interface PeriodTotals {

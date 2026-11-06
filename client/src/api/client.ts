@@ -2,7 +2,6 @@ import { API_BASE } from '../lib/config';
 import { recordServerDate } from '../lib/serverClock';
 import type {
   Analytics,
-  BackupInfo,
   HistoryQuery,
   HistoryRow,
   Checkout,
@@ -159,15 +158,13 @@ export const api = {
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
   me: () => request<{ user: User; expiresAt: string }>('/auth/me'),
   listAccounts: () => request<{ accounts: LoginAccount[] }>('/auth/accounts').then((r) => r.accounts),
-  createAccount: (body: { role: Role; username: string; password: string; currentPassword: string }) =>
+  createAccount: (body: { role: Role; username: string; password: string }) =>
     request<{ account: LoginAccount; accounts: LoginAccount[] }>('/auth/accounts', { method: 'POST', body: JSON.stringify(body) }),
   updateAccount: (id: number, body: { username?: string; password?: string; role?: Role; isActive?: boolean; currentPassword: string }) =>
     request<{ account: LoginAccount; accounts: LoginAccount[] }>(`/auth/accounts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteAccount: (id: number, currentPassword: string) =>
     request<{ accounts: LoginAccount[] }>(`/auth/accounts/${id}`, { method: 'DELETE', body: JSON.stringify({ currentPassword }) }),
 
-  getBackups: () => request<BackupInfo>('/admin/backups'),
-  backupNow: () => request<{ file: { name: string; sizeBytes: number } | null }>('/admin/backups', { method: 'POST' }),
 
   /** Kitchen display data (no prices). */
   kitchenOrders: () => request<{ orders: KitchenOrder[] }>('/kitchen/orders').then((r) => r.orders),

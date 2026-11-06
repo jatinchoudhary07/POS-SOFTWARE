@@ -159,21 +159,22 @@ describe('managing logins (Superadmin)', () => {
     ]);
     expect(JSON.stringify(res.body)).not.toMatch(/scrypt|hash|password"/i);
     await ctx.as('RECEPTION').get('/api/auth/accounts').expect(403);
-    await ctx.as('KITCHEN').post('/api/auth/accounts').send({ role: 'KITCHEN', username: 'sneaky', password: 'x'.repeat(10), currentPassword: PASSWORDS.KITCHEN }).expect(403);
+    await ctx.as('KITCHEN').post('/api/auth/accounts').send({ role: 'KITCHEN', username: 'sneaky', password: 'x'.repeat(10) }).expect(403);
   });
 
   it('adds several logins for the same role', async () => {
     const ctx = setupTestApp();
     const add = (body: object) => ctx.api.post('/api/auth/accounts').send(body);
-    expect((await add({ role: 'KITCHEN', username: 'chef2', password: 'chef2-pass', currentPassword: 'wrong' }).expect(403)).body.error.code).toBe('REAUTH_FAILED');
-    await add({ role: 'KITCHEN', username: 'chef2', password: '12345', currentPassword: SA }).expect(400); // too short
-    await add({ role: 'KITCHEN', username: 'bad name!', password: 'chef2-pass', currentPassword: SA }).expect(400);
-    expect((await add({ role: 'KITCHEN', username: 'CHEF', password: 'chef2-pass', currentPassword: SA }).expect(409)).body.error.code).toBe('USERNAME_TAKEN');
-    await add({ role: 'MANAGER', username: 'boss1', password: 'boss1-pass', currentPassword: SA }).expect(400);
+    // adding a login does not ask for the owner's own password
+    await add({ role: 'KITCHEN', username: 'chef2', password: 'chef2-pass', currentPassword: SA }).expect(400); // that field is no longer accepted
+    await add({ role: 'KITCHEN', username: 'chef2', password: '12345' }).expect(400); // too short
+    await add({ role: 'KITCHEN', username: 'bad name!', password: 'chef2-pass' }).expect(400);
+    expect((await add({ role: 'KITCHEN', username: 'CHEF', password: 'chef2-pass' }).expect(409)).body.error.code).toBe('USERNAME_TAKEN');
+    await add({ role: 'MANAGER', username: 'boss1', password: 'boss1-pass' }).expect(400);
 
-    const res = await add({ role: 'KITCHEN', username: 'chef2', password: 'chef2-pass', currentPassword: SA }).expect(201);
+    const res = await add({ role: 'KITCHEN', username: 'chef2', password: 'chef2-pass' }).expect(201);
     expect(res.body.account).toMatchObject({ role: 'KITCHEN', username: 'chef2', isActive: true });
-    await add({ role: 'SUPERADMIN', username: 'owner2', password: 'owner2-pass', currentPassword: SA }).expect(201);
+    await add({ role: 'SUPERADMIN', username: 'owner2', password: 'owner2-pass' }).expect(201);
     expect(res.body.accounts).toHaveLength(4);
     expect((await login(ctx, 'chef2', 'chef2-pass').expect(200)).body.user.role).toBe('KITCHEN');
     expect((await login(ctx, 'owner2', 'owner2-pass').expect(200)).body.user.role).toBe('SUPERADMIN');
@@ -240,7 +241,7 @@ describe('managing logins (Superadmin)', () => {
 
   it('lets one Superadmin turn off another, whose sessions then end', async () => {
     const ctx = setupTestApp();
-    await ctx.api.post('/api/auth/accounts').send({ role: 'SUPERADMIN', username: 'owner2', password: 'owner2-pass', currentPassword: SA }).expect(201);
+    await ctx.api.post('/api/auth/accounts').send({ role: 'SUPERADMIN', username: 'owner2', password: 'owner2-pass' }).expect(201);
     const cookie2 = cookieOf(await login(ctx, 'owner2', 'owner2-pass').expect(200));
     await request(ctx.app)
       .put(`/api/auth/accounts/${idOf(ctx, 'SUPERADMIN')}`)

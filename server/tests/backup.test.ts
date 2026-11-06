@@ -284,12 +284,9 @@ describe('backups in the app', () => {
     expect(snap.prepare('SELECT restaurant_name FROM restaurant_settings').get()).toEqual({ restaurant_name: 'Backup Bistro' }); // state BEFORE the change
     snap.close();
 
-    const st = await request(app).get('/api/admin/backups').set('Cookie', c(owner)).expect(200);
-    expect(st.body.status.lastSuccess.file).toBe(files[0].name);
-    expect(st.body.files[0]).toEqual({ name: files[0].name, sizeBytes: expect.any(Number), createdAt: expect.any(String), reason: 'before-change' });
-    await request(app).get('/api/admin/backups').set('Cookie', c(front)).expect(403);
-    await request(app).post('/api/admin/backups').set('Cookie', c(front)).expect(403);
-    expect((await request(app).post('/api/admin/backups').set('Cookie', c(owner)).expect(201)).body.file.name).toMatch(/manual/);
+    // The Settings -> Backups screen and its API were removed; automatic backups keep running on the server.
+    await request(app).get('/api/admin/backups').set('Cookie', c(owner)).expect(404);
+    await request(app).post('/api/admin/backups').set('Cookie', c(owner)).expect(404);
     helper.sqlite.close();
     live.sqlite.close();
   });

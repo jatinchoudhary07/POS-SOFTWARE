@@ -122,20 +122,6 @@ export function createApp({
   app.use('/api/credit', creditRouter(createCreditService(db, now)));
   app.use('/api/reports', analyticsRouter(createAnalyticsService(db)));
 
-  // Backup status for the Superadmin (Settings → Backups). No file downloads over the network.
-  app.get('/api/admin/backups', requireRole('SUPERADMIN'), (_req, res) => {
-    if (!backups) return res.json({ enabled: false });
-    res.json({ enabled: true, status: backups.status(), files: backups.list().slice(0, 15).map((f) => ({ name: f.name, sizeBytes: f.sizeBytes, createdAt: f.createdAt.toISOString(), reason: f.reason })) });
-  });
-  app.post('/api/admin/backups', requireRole('SUPERADMIN'), async (_req, res) => {
-    if (!backups) throw new AppError(503, 'BACKUPS_DISABLED', 'Backups are not configured');
-    try {
-      const file = await backups.backupNow('manual');
-      res.status(201).json({ file: file && { name: file.name, sizeBytes: file.sizeBytes }, status: backups.status() });
-    } catch (e) {
-      throw new AppError(503, 'BACKUP_FAILED', (e as Error).message);
-    }
-  });
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown API route' } });
   });

@@ -22,7 +22,6 @@ const createAccountSchema = z
     role: z.enum(USER_ROLES),
     username: loginName,
     password: z.string().min(1, 'Enter a password').max(MAX_PASSWORD_LENGTH),
-    currentPassword,
   })
   .strict();
 

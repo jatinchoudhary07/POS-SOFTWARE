@@ -199,11 +199,9 @@ export function createAuthService(db: DB, events: EventBus, opts: AuthServiceOpt
     },
 
     /** Superadmin adds another login (any role; a role can have as many logins as needed). */
-    async createAccount(
-      actor: AuthSession,
-      input: { role: UserRole; username: string; password: string; currentPassword: string },
-    ): Promise<LoginAccountDTO> {
-      await reauth(actor, input.currentPassword);
+    async createAccount(actor: AuthSession, input: { role: UserRole; username: string; password: string }): Promise<LoginAccountDTO> {
+      // Adding a login does not ask for the owner's own password (changing or deleting one does).
+      if (actor.user.role !== 'SUPERADMIN') throw new AppError(403, 'FORBIDDEN', 'Only the Superadmin can change logins');
       const username = input.username.trim();
       assertPassword(input.role, input.password);
       assertUsernameFree(username);
