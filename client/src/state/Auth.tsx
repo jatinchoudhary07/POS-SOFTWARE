@@ -1,3 +1,4 @@
+// @refresh reset
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, ApiError, setUnauthenticatedHandler } from '../api/client';
 import type { User } from '../api/types';

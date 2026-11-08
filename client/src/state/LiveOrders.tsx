@@ -1,3 +1,4 @@
+// @refresh reset
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api, ApiError } from '../api/client';

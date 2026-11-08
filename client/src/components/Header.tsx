@@ -1,3 +1,4 @@
+// @refresh reset
 import { ChartColumn, ChefHat, ClipboardList, CookingPot, LayoutGrid, LogOut, Settings, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { User } from '../api/types';
