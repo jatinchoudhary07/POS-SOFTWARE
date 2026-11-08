@@ -40,6 +40,7 @@ const { app, events, auth } = createApp({
   defaultRestaurantName: config.restaurantName,
   backups,
   trustProxy: config.trustProxy,
+  push: config.push,
   // No payment terminal is integrated yet; cash and manually verified UPI need no provider.
   paymentProviders: [],
 });

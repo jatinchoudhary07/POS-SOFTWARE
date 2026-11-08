@@ -503,3 +503,28 @@ export const sessions = sqliteTable(
   },
   (t) => [index('sessions_user_idx').on(t.userId), index('sessions_expires_idx').on(t.expiresAt)],
 );
+
+/**
+ * A phone / browser that asked to be told about orders while its screen is locked or the app is in
+ * the background (Web Push). Tied to the sign-in it was made with: signing out removes it, so a
+ * signed-out phone gets no alerts. `endpoint` is the address of the phone maker's push service.
+ */
+export const pushSubscriptions = sqliteTable(
+  'push_subscriptions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // The sign-in this device used (a session id). Not a foreign key: it is only used to remove the device at sign-out.
+    sessionId: text('session_id'),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    // Alerts stop after this unless the app is opened again (which renews it).
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('push_subscriptions_endpoint_unique').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
+);

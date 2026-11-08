@@ -1,10 +1,12 @@
 import { Bell, BellOff } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isFullOrder, type LiveOrder } from '../api/types';
-import { askNotificationPermission, buzz, chime, setAlertsEnabled, systemNotify, unlockAudio, useAlertsEnabled } from '../lib/orderAlerts';
+import { buzz, chime, systemNotify, useAlertsEnabled } from '../lib/orderAlerts';
+import { disablePush, refreshPush, registerServiceWorker } from '../lib/push';
 import { useUser } from '../state/Auth';
 import { useLiveOrders } from '../state/LiveOrders';
 import { cx } from '../lib/cx';
+import { AlertsSheet, PushPrompt } from './AlertsSheet';
 import { IconButton } from './ui/Button';
 import { useToast } from './ui/Toast';
 
@@ -17,9 +19,10 @@ const itemsLine = (o: LiveOrder) =>
     .join(', ') + (o.items.length > 3 ? ` +${o.items.length - 3} more` : '');
 
 /**
- * Kitchen login: alerts for every NEW order. Reception / Superadmin: alerts when an order turns READY.
- * Plays a chime, vibrates (Android), shows a toast, flashes the tab title and, if allowed, sends a
- * system notification while the tab is in the background.
+ * Kitchen login: alerts for every NEW order (a loud bell). Reception / Superadmin: alerts when an order
+ * turns READY (a soft marimba run). The two sounds are deliberately very different.
+ * Also vibrates (Android), shows a toast, flashes the tab title and, if allowed, sends a system
+ * notification while the tab is in the background.
  */
 export function OrderAlerts() {
   const { role } = useUser();
@@ -31,16 +34,10 @@ export function OrderAlerts() {
   const unseen = useRef(0);
   const baseTitle = useRef(document.title);
 
-  // Browsers allow sound only after the first tap/keypress on the page.
+  // Lock-screen alerts follow the mute switch: muted = this phone is taken off the list, on = (re)registered to this sign-in.
   useEffect(() => {
-    const unlock = () => unlockAudio();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
-    };
-  }, []);
+    void registerServiceWorker().then(() => (enabled ? refreshPush() : disablePush()));
+  }, [enabled]);
 
   // Clear the flashing title once the tab is looked at again.
   useEffect(() => {
@@ -64,8 +61,8 @@ export function OrderAlerts() {
       // An order the kitchen was working on got cancelled: tell them to stop.
       if (role === 'KITCHEN' && type === 'updated' && order.status === 'CANCELLED' && !!before && before.status !== 'CANCELLED' && before.status !== 'COMPLETED') {
         toast({ tone: 'error', title: `Order #${shortNumber(order)} cancelled · ${place(order)}`, description: 'Stop preparing it.' });
-        chime('ready');
-        buzz();
+        chime('cancel');
+        buzz('cancel');
         systemNotify(`Order #${shortNumber(order)} cancelled`, 'Stop preparing it.', `order-${order.id}`);
         return;
       }
@@ -79,8 +76,10 @@ export function OrderAlerts() {
       const body = isNew || isAdded ? itemsLine(order) : isFullOrder(order) && order.items.length ? itemsLine(order) : 'Ready to serve';
 
       toast({ tone: 'success', title, description: body });
-      chime(isNew || isAdded ? 'new' : 'ready');
-      buzz();
+      // Kitchen hears the loud bell for incoming food; reception / owner hear the soft marimba run for "ready".
+      const kind = isNew || isAdded ? 'new' : 'ready';
+      chime(kind);
+      buzz(kind);
       systemNotify(title, body, `order-${order.id}`);
       if (document.visibilityState !== 'visible') {
         unseen.current += 1;
@@ -89,29 +88,25 @@ export function OrderAlerts() {
     });
   }, [enabled, role, subscribe, toast]);
 
-  return null;
+  return <PushPrompt />;
 }
 
-/** Header button: turn order alerts on or off. Turning them on also unlocks sound and asks for notification permission. */
+/** Header button: opens the alerts panel (mute, hear the sound, set up alerts for a locked phone). */
 export function AlertBell() {
   const enabled = useAlertsEnabled();
+  const [open, setOpen] = useState(false);
   return (
-    <IconButton
-      icon={enabled ? Bell : BellOff}
-      variant="plain"
-      aria-label={enabled ? 'Turn order alerts off' : 'Turn order alerts on'}
-      aria-pressed={enabled}
-      title={enabled ? 'Order alerts on (tap to mute)' : 'Order alerts off'}
-      className={cx(enabled ? 'text-accent' : 'text-ink-3')}
-      onClick={() => {
-        const next = !enabled;
-        setAlertsEnabled(next);
-        if (next) {
-          unlockAudio();
-          chime('ready'); // a test chime so you know the sound works
-          void askNotificationPermission();
-        }
-      }}
-    />
+    <>
+      <IconButton
+        icon={enabled ? Bell : BellOff}
+        variant="plain"
+        aria-label="Order alerts settings"
+        aria-haspopup="dialog"
+        title={enabled ? 'Order alerts on' : 'Order alerts muted'}
+        className={cx(enabled ? 'text-accent' : 'text-ink-3')}
+        onClick={() => setOpen(true)}
+      />
+      {open && <AlertsSheet onClose={() => setOpen(false)} />}
+    </>
   );
 }

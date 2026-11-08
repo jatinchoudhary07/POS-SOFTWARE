@@ -7,10 +7,15 @@ import type { OrderDTO } from './services/orderService';
  * Events are only emitted after the database transaction has committed, exactly once
  * per real change (duplicate submissions and repeated status requests emit nothing).
  */
+/** What happened to an order that somebody must be told about, even with their phone locked (see pushService). */
+export type OrderAlertKind = 'NEW_ORDER' | 'ITEMS_ADDED' | 'CHANGED' | 'CANCELLED' | 'READY';
+
 export interface DomainEvents {
   'order.created': [order: OrderDTO];
   /** `kitchen: false` = a billing/payment change the kitchen doesn't need to hear about. */
   'order.updated': [order: OrderDTO, meta?: { kitchen: boolean }];
+  /** An order moved in a way a person must hear about: new food for the kitchen, or food ready for the front desk. */
+  'order.alert': [alert: { kind: OrderAlertKind; order: OrderDTO }];
   /**
    * Sessions were ended (logout, credential change). Realtime disconnects affected sockets:
    * all of the user's sockets except `keepSessionId`, or only `onlySessionId`.

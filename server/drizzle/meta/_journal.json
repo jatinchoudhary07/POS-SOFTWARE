@@ -78,6 +78,13 @@
       "when": 1793891651616,
       "tag": "0010_skinny_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794130304229,
+      "tag": "0011_tranquil_nova",
+      "breakpoints": true
     }
   ]
 }

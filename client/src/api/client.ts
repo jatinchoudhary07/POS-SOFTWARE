@@ -152,6 +152,12 @@ export const api = {
 
   // --- Authentication (Day 4) ------------------------------------------------
   authStatus: () => request<{ setupRequired: boolean }>('/auth/status'),
+  // --- Alerts for locked phones (Web Push) -----------------------------------
+  pushKey: () => request<{ enabled: boolean; publicKey: string }>('/push/key'),
+  pushSubscribe: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    request<{ ok: true }>('/push/subscribe', { method: 'POST', body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.keys }) }),
+  pushUnsubscribe: (endpoint: string) => request<{ ok: true }>('/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) }),
+  pushTest: () => request<{ sentTo: number }>('/push/test', { method: 'POST' }),
   /** Only username + password are sent; the role comes from the account on the server. */
   login: (username: string, password: string) =>
     request<{ user: User; expiresAt: string }>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),

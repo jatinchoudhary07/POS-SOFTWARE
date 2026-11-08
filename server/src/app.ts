@@ -25,6 +25,8 @@ import { createTablesService } from './services/tablesService';
 import { createOrderService } from './services/orderService';
 import { createCreditService } from './services/creditService';
 import { creditRouter } from './routes/credit';
+import { pushRouter } from './routes/push';
+import { createPushService, type PushOptions } from './services/pushService';
 
 export interface AppOptions {
   db: DB;
@@ -48,6 +50,8 @@ export interface AppOptions {
   providerTimeoutMs?: number;
   /** Express trust proxy configuration for hosting platforms behind reverse proxies */
   trustProxy?: boolean | string | number;
+  /** Alerts for locked phones. Left out = switched off. */
+  push?: PushOptions;
 }
 
 /**
@@ -70,6 +74,7 @@ export function createApp({
   paymentProviders = [],
   providerTimeoutMs,
   trustProxy,
+  push: pushOptions,
 }: AppOptions) {
   const app = express();
   if (trustProxy !== undefined && trustProxy !== false && trustProxy !== '') {
@@ -85,6 +90,10 @@ export function createApp({
     now,
   });
   const auth = createAuthService(db, events, { idleMs: sessionIdleMs, maxMs: sessionMaxMs, now, limiter: loginLimiter, ipLimiter: ipLoginLimiter });
+
+  // Alerts to phones that are locked or have the app in the background (see services/pushService.ts).
+  const push = createPushService(db, events, { validMs: sessionMaxMs, now, ...pushOptions });
+  push.start();
 
   app.disable('x-powered-by');
   // Only explicitly listed origins may call the API from another site.
@@ -110,6 +119,7 @@ export function createApp({
     res.json({ ok: true, time: new Date().toISOString() });
   });
   app.use('/api/auth', authRouter(auth, { cookieSecure }));
+  app.use('/api/push', pushRouter(push));
   app.use('/api/menu', menuRouter(menu));
   const tablesService = createTablesService(db, { loadOrder: orders.getById, events });
   app.use('/api/tables', tablesRouter(tablesService, billing));

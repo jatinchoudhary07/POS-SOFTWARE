@@ -34,6 +34,10 @@ const envSchema = z.object({
   RESTAURANT_NAME: z.string().default('Two Hearts Cafe'),
   // Enable when behind a reverse proxy/load balancer (e.g. Render, Railway, Fly.io, Nginx)
   TRUST_PROXY: z.string().default(''),
+  // Alerts for locked phones (Web Push). Make a pair once with: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.string().default(''),
+  VAPID_PRIVATE_KEY: z.string().default(''),
+  VAPID_SUBJECT: z.string().default(''),
 });
 
 const env = envSchema.parse(process.env);
@@ -65,4 +69,5 @@ export const config = {
     .map((o) => o.trim())
     .filter(Boolean),
   trustProxy: env.TRUST_PROXY || false,
+  push: { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT || undefined },
 };

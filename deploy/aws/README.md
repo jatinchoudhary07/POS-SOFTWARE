@@ -32,3 +32,18 @@ release that changed the database has to be removed.
 
 First-time setup of a new server: `sudo bash deploy/aws/install-auto-deploy.sh`, then run the deploy once,
 point `pos.service` at `/opt/pos-app/current/server`, and `systemctl enable --now pos-deploy.timer`.
+
+## Alerts for locked phones (Web Push)
+
+The kitchen / reception phones get a notification even when locked. The server needs its own key pair in
+`/etc/pos.env` (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`); without it these alerts are simply off
+and the app still works. Keep the private key secret and do not commit it. To make a new pair on the server
+(this invalidates every phone's registration - each phone re-registers the next time the app is opened):
+
+```
+node -e 'const c=require("crypto");const e=c.createECDH("prime256v1");e.generateKeys();const b=x=>x.toString("base64url");console.log("VAPID_PUBLIC_KEY="+b(e.getPublicKey()));console.log("VAPID_PRIVATE_KEY="+b(e.getPrivateKey()))'
+```
+
+A phone is registered to the address (hostname) it was set up on. If the address of the app changes (for example
+to a new domain), every phone must open the new address and turn the alerts on again, and an iPhone's Home Screen
+app must be added again.

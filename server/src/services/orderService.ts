@@ -330,7 +330,10 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
       });
 
       const order = findById(id)!;
-      if (changed) events.emit('order.updated', order);
+      if (changed) {
+        events.emit('order.updated', order);
+        if (to === 'READY') events.emit('order.alert', { kind: 'READY', order });
+      }
       return { order, changed };
     },
 
@@ -361,7 +364,10 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
         return true;
       });
       const order = findById(id)!;
-      if (changed) events.emit('order.updated', order);
+      if (changed) {
+        events.emit('order.updated', order);
+        events.emit('order.alert', { kind: 'CANCELLED', order });
+      }
       return order;
     },
 
@@ -407,6 +413,7 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
       });
       const order = findById(id)!;
       events.emit('order.updated', order);
+      events.emit('order.alert', { kind: 'CHANGED', order });
       return order;
     },
 
@@ -534,6 +541,7 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
 
       const order = findById(orderId)!;
       events.emit(merged ? 'order.updated' : 'order.created', order);
+      events.emit('order.alert', { kind: merged ? 'ITEMS_ADDED' : 'NEW_ORDER', order });
       return { order, duplicate: false, merged };
     },
   };
