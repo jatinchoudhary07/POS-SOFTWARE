@@ -8,7 +8,7 @@ import { newRequestId } from '../lib/id';
 
 export const MAX_QTY = 99;
 export const MAX_NOTES = 500;
-export const MAX_TABLE = 10;
+export const MAX_TABLE = 20;
 export const MAX_CUSTOMER_NAME = 60;
 export const MAX_CUSTOMER_PHONE = 10;
 

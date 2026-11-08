@@ -73,7 +73,8 @@ describe('dining tables', () => {
   it('rejects duplicates, long names and non-Superadmin edits', async () => {
     const ctx = setupTestApp();
     expect((await ctx.api.put('/api/tables').send({ tables: ['T1', 't1'] })).status).toBe(400);
-    expect((await ctx.api.put('/api/tables').send({ tables: ['x'.repeat(11)] })).status).toBe(400);
+    expect((await ctx.api.put('/api/tables').send({ tables: ['x'.repeat(21)] })).status).toBe(400);
+    expect((await ctx.api.put('/api/tables').send({ tables: ['x'.repeat(20)] })).status).toBe(200); // up to 20 characters is fine
     expect((await ctx.as('RECEPTION').put('/api/tables').send({ tables: ['T1'] })).status).toBe(403);
     expect((await ctx.as('KITCHEN').get('/api/tables')).status).toBe(403);
   });

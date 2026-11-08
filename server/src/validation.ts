@@ -49,7 +49,7 @@ export const createOrderSchema = z
       .max(64, 'clientRequestId is too long'),
     orderType: z.enum(ORDER_TYPES, { error: 'Order type must be DINE_IN or TAKEAWAY' }),
     tableId: z.number().int().positive().optional().nullable(),
-    tableNumber: optionalTrimmed(10, 'Table number'),
+    tableNumber: optionalTrimmed(20, 'Table number'),
     notes: optionalTrimmed(500, 'Notes'),
     customerName: optionalTrimmed(60, 'Customer name'),
     customerPhone: optionalPhone,
@@ -114,7 +114,7 @@ export const updateCategorySchema = z
 export const saveTablesSchema = z
   .object({
     tables: z
-      .array(z.string().trim().min(1, 'A table name cannot be empty').max(10, 'Table names are at most 10 characters'))
+      .array(z.string().trim().min(1, 'A table name cannot be empty').max(20, 'Table names are at most 20 characters'))
       .max(100, 'At most 100 tables')
       .refine((names) => new Set(names.map((n) => n.toLowerCase())).size === names.length, 'Each table needs a different name'),
   })
@@ -122,7 +122,7 @@ export const saveTablesSchema = z
 
 export const createTableSchema = z
   .object({
-    name: z.string().trim().min(1, 'A table name cannot be empty').max(10, 'Table names are at most 10 characters'),
+    name: z.string().trim().min(1, 'A table name cannot be empty').max(20, 'Table names are at most 20 characters'),
     capacity: z
       .number({ error: 'Capacity must be a number' })
       .int('Capacity must be a whole number')
@@ -136,7 +136,7 @@ export type CreateTableInput = z.infer<typeof createTableSchema>;
 
 export const updateTableSchema = z
   .object({
-    name: z.string().trim().min(1, 'A table name cannot be empty').max(10, 'Table names are at most 10 characters').optional(),
+    name: z.string().trim().min(1, 'A table name cannot be empty').max(20, 'Table names are at most 20 characters').optional(),
     capacity: z
       .number({ error: 'Capacity must be a number' })
       .int('Capacity must be a whole number')
