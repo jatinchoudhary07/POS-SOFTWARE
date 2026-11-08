@@ -24,6 +24,7 @@ import type { TableDetailDTO, TableTileDTO } from '../api/types';
 import { cx } from '../lib/cx';
 import { formatPaise } from '../lib/money';
 import { formatClock } from '../lib/time';
+import { useUser } from '../state/Auth';
 import { useLiveOrders } from '../state/LiveOrders';
 import { useReceiptPrinter } from './ReceiptPrinter';
 import { Button, IconButton } from './ui/Button';
@@ -45,14 +46,25 @@ const KITCHEN_STAGE = {
   COMPLETED: { label: 'Served', icon: CheckCheck, cls: 'bg-slate-100 text-slate-800 border-slate-300' },
 } as const;
 
+/**
+ * The last tables we showed, kept while the person visits other screens. Coming back shows them at once (never an
+ * empty "no tables match" flash) while fresh data is fetched quietly in the background. Kept per login so a
+ * different login on the same phone never sees another's tables.
+ */
+let tilesCache: { userId: number; tiles: TableTileDTO[] } | null = null;
+const BACKGROUND_REFRESH_MS = 20_000;
+
 export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOrderCheckout, onStartPackingOrder }: Props) {
   const toast = useToast();
   const { subscribe, lastSyncedAt } = useLiveOrders();
+  const me = useUser();
   const { print: printReceipt, printTable, printing } = useReceiptPrinter();
   const [printingTableId, setPrintingTableId] = useState<number | null>(null);
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
-  const [tiles, setTiles] = useState<TableTileDTO[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = tilesCache?.userId === me.id ? tilesCache.tiles : null;
+  const [tiles, setTiles] = useState<TableTileDTO[]>(cached ?? []);
+  // Only "loading" (a spinner) when there is nothing to show yet; with cached tables the refresh is silent.
+  const [loading, setLoading] = useState(cached === null);
   const [filter, setFilter] = useState<'ALL' | 'RUNNING' | 'PRINTED' | 'PAID'>('ALL');
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
   const [detail, setDetail] = useState<TableDetailDTO | null>(null);
@@ -73,13 +85,18 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
     const ticket = ++tilesRequest.current;
     try {
       const data = await api.getTableOverview();
-      if (ticket === tilesRequest.current) setTiles(data);
-    } catch (e) {
-      toast({ tone: 'error', title: 'Could not load tables', description: e instanceof ApiError ? e.message : undefined });
-    } finally {
+      // Only the newest request counts: an older answer must not overwrite a newer one, nor end the loading state early.
+      if (ticket !== tilesRequest.current) return;
+      tilesCache = { userId: me.id, tiles: data };
+      setTiles(data);
       setLoading(false);
+    } catch (e) {
+      if (ticket !== tilesRequest.current) return;
+      setLoading(false);
+      // A failed quiet refresh keeps showing what we have; only say so when there is nothing to show.
+      if (tilesCache?.userId !== me.id) toast({ tone: 'error', title: 'Could not load tables', description: e instanceof ApiError ? e.message : undefined });
     }
-  }, [toast]);
+  }, [toast, me.id]);
 
   const loadTableDetails = useCallback(
     async (id: number) => {
@@ -113,12 +130,31 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
 
   // The app also catches up on its own (after a dropped connection, or when the phone is woken up) without any
   // order event firing; the table tiles must follow that too, or they keep showing an old status.
+  const firstSync = useRef(lastSyncedAt);
   useEffect(() => {
-    if (!lastSyncedAt) return;
+    if (!lastSyncedAt || lastSyncedAt === firstSync.current) return; // the first load is already running
     void loadTables();
     if (selectedTableId) void loadTableDetails(selectedTableId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastSyncedAt]);
+
+  // Background refresh: every 20 s while the screen is visible, and as soon as it is shown again. This is a safety
+  // net on top of the live updates, so the tiles stay right even if an update was missed.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadTables();
+      if (selectedTableId) void loadTableDetails(selectedTableId);
+    };
+    const timer = window.setInterval(refresh, BACKGROUND_REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [loadTables, loadTableDetails, selectedTableId]);
 
   const handleSelectTable = (id: number) => {
     setSelectedTableId(id);
