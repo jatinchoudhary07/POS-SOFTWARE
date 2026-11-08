@@ -18,7 +18,7 @@ import {
   UtensilsCrossed,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { TableDetailDTO, TableTileDTO } from '../api/types';
 import { cx } from '../lib/cx';
@@ -47,7 +47,7 @@ const KITCHEN_STAGE = {
 
 export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOrderCheckout, onStartPackingOrder }: Props) {
   const toast = useToast();
-  const { subscribe } = useLiveOrders();
+  const { subscribe, lastSyncedAt } = useLiveOrders();
   const { print: printReceipt, printTable, printing } = useReceiptPrinter();
   const [printingTableId, setPrintingTableId] = useState<number | null>(null);
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
@@ -64,10 +64,16 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
     return () => clearInterval(t);
   }, []);
 
+  // Every change triggers a fresh request. On a slow phone connection two answers can arrive in the wrong
+  // order, so only the answer to the most recent request is used (an older one must never overwrite a newer one).
+  const tilesRequest = useRef(0);
+  const detailRequest = useRef(0);
+
   const loadTables = useCallback(async () => {
+    const ticket = ++tilesRequest.current;
     try {
       const data = await api.getTableOverview();
-      setTiles(data);
+      if (ticket === tilesRequest.current) setTiles(data);
     } catch (e) {
       toast({ tone: 'error', title: 'Could not load tables', description: e instanceof ApiError ? e.message : undefined });
     } finally {
@@ -77,14 +83,15 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
 
   const loadTableDetails = useCallback(
     async (id: number) => {
+      const ticket = ++detailRequest.current;
       setDetailLoading(true);
       try {
         const d = await api.getTableDetails(id);
-        setDetail(d);
+        if (ticket === detailRequest.current) setDetail(d);
       } catch (e) {
-        toast({ tone: 'error', title: 'Could not load table details', description: e instanceof ApiError ? e.message : undefined });
+        if (ticket === detailRequest.current) toast({ tone: 'error', title: 'Could not load table details', description: e instanceof ApiError ? e.message : undefined });
       } finally {
-        setDetailLoading(false);
+        if (ticket === detailRequest.current) setDetailLoading(false);
       }
     },
     [toast],
@@ -103,6 +110,15 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
       }
     });
   }, [subscribe, loadTables, loadTableDetails, selectedTableId]);
+
+  // The app also catches up on its own (after a dropped connection, or when the phone is woken up) without any
+  // order event firing; the table tiles must follow that too, or they keep showing an old status.
+  useEffect(() => {
+    if (!lastSyncedAt) return;
+    void loadTables();
+    if (selectedTableId) void loadTableDetails(selectedTableId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastSyncedAt]);
 
   const handleSelectTable = (id: number) => {
     setSelectedTableId(id);
