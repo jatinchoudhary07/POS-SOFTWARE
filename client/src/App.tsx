@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { createPortal } from 'react-dom';
 import { api, ApiError } from './api/client';
 import type { MenuCategory, MenuItem, TableTileDTO } from './api/types';
+import { useKeepWarm } from './lib/useKeepWarm';
 import { CartBar } from './components/CartBar';
 import { CategorySidebar } from './components/CategorySidebar';
 import { CheckoutView } from './components/CheckoutView';
@@ -47,6 +48,7 @@ function routeFromPath(path: string): Route {
 }
 
 export default function App() {
+  useKeepWarm();
   const user = useUser();
   const { logout } = useAuth();
   const [requested, setRoute] = useState<Route>(() => routeFromPath(window.location.pathname));
@@ -190,9 +192,9 @@ export default function App() {
     <div className="relative flex h-full w-full max-w-full min-w-0 flex-col overflow-hidden bg-[#f8fafc]">
       {/* Apple-style subtle ambient background lighting for frosted glass refraction */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden select-none">
-        <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-slate-200/50 blur-[130px]" />
-        <div className="absolute top-1/4 -right-40 h-[600px] w-[600px] rounded-full bg-rose-100/40 blur-[150px]" />
-        <div className="absolute -bottom-40 left-1/3 h-[550px] w-[550px] rounded-full bg-blue-100/35 blur-[140px]" />
+        <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-[radial-gradient(closest-side,rgba(226,232,240,0.55),transparent)]" />
+        <div className="absolute top-1/4 -right-40 h-[600px] w-[600px] rounded-full bg-[radial-gradient(closest-side,rgba(255,228,230,0.5),transparent)]" />
+        <div className="absolute -bottom-40 left-1/3 h-[550px] w-[550px] rounded-full bg-[radial-gradient(closest-side,rgba(219,234,254,0.45),transparent)]" />
       </div>
 
       <OrderAlerts />
