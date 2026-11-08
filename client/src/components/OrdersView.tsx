@@ -231,6 +231,12 @@ function OrderCard({
             <p className="w-full rounded-control bg-fill px-3 py-2 text-center text-xs font-medium text-ink-2">
               Cancelled{order.cancelReason ? ` · ${order.cancelReason}` : ''}
             </p>
+          ) : isReady && !dineIn && !isSettled(order) ? (
+            // A ready packing order that is not paid yet: only Checkout here. "Hand over" appears on the next
+            // screen once it is paid (a Hand Over button here made the card vanish before the customer had paid).
+            <Button variant="primary" icon={CreditCard} onClick={onCheckout} className="w-full font-bold shadow-xs py-2 text-sm">
+              Checkout &bull; {formatPaise(order.billTotalPaise ?? order.subtotalPaise)}
+            </Button>
           ) : isReady ? (
             <>
               <Button
