@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import type { TableDetailDTO, TableTileDTO } from '../api/types';
+import { isFullOrder, type Order, type TableDetailDTO, type TableTileDTO } from '../api/types';
 import { cx } from '../lib/cx';
 import { formatPaise } from '../lib/money';
 import { formatClock } from '../lib/time';
@@ -56,7 +56,7 @@ const BACKGROUND_REFRESH_MS = 20_000;
 
 export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOrderCheckout, onStartPackingOrder }: Props) {
   const toast = useToast();
-  const { subscribe, lastSyncedAt } = useLiveOrders();
+  const { subscribe, lastSyncedAt, orders, loaded: ordersLoaded, updateStatus } = useLiveOrders();
   const me = useUser();
   const { print: printReceipt, printTable, printing } = useReceiptPrinter();
   const [printingTableId, setPrintingTableId] = useState<number | null>(null);
@@ -65,7 +65,8 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
   const [tiles, setTiles] = useState<TableTileDTO[]>(cached ?? []);
   // Only "loading" (a spinner) when there is nothing to show yet; with cached tables the refresh is silent.
   const [loading, setLoading] = useState(cached === null);
-  const [filter, setFilter] = useState<'ALL' | 'RUNNING' | 'PRINTED' | 'PAID'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'RUNNING' | 'PRINTED' | 'PAID' | 'PACKING'>('ALL');
+  const [handingId, setHandingId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
   const [detail, setDetail] = useState<TableDetailDTO | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -172,6 +173,27 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
   const runningCount = useMemo(() => tiles.filter((t) => t.tableStatus === 'RUNNING_KOT').length, [tiles]);
   const printedCount = useMemo(() => tiles.filter((t) => t.tableStatus === 'PRINTED').length, [tiles]);
   const paidCount = useMemo(() => tiles.filter((t) => t.tableStatus === 'PAID').length, [tiles]);
+  const packingOrders = useMemo(
+    () =>
+      [...orders.values()]
+        .filter(isFullOrder)
+        .filter((o) => o.orderType === 'TAKEAWAY' && o.status !== 'CANCELLED' && !(o.status === 'COMPLETED' && (o.paymentStatus === 'PAID' || o.paymentStatus === 'REFUNDED')))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [orders],
+  );
+
+  async function handOver(o: Order) {
+    setHandingId(o.id);
+    try {
+      await updateStatus(o.id, 'COMPLETED');
+      toast({ tone: 'success', title: `#${o.orderNumber} handed over` });
+    } catch (e) {
+      toast({ tone: 'error', title: 'Could not update the order', description: e instanceof ApiError ? e.message : undefined });
+    } finally {
+      setHandingId(null);
+    }
+  }
+
   const availableCount = useMemo(() => tiles.filter((t) => t.status === 'AVAILABLE' || t.tableStatus === 'BLANK').length, [tiles]);
 
   return (
@@ -248,7 +270,7 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
                   aria-selected={filter === 'ALL'}
                   onClick={() => setFilter('ALL')}
                   className={cx(
-                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
+                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-1.5 sm:px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
                     filter === 'ALL'
                       ? 'bg-white text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.08)] ring-1 ring-black/5 font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/40',
@@ -264,13 +286,13 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
                   aria-selected={filter === 'RUNNING'}
                   onClick={() => setFilter('RUNNING')}
                   className={cx(
-                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
+                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-1.5 sm:px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
                     filter === 'RUNNING'
                       ? 'bg-white text-amber-950 shadow-[0_2px_8px_rgba(15,23,42,0.08)] ring-1 ring-amber-400/40 font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/40',
                   )}
                 >
-                  <span className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)] shrink-0" />
+                  <span className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)] shrink-0 max-sm:hidden" />
                   <span>Running</span>
                   <span className="tabular-nums text-slate-400 font-normal">({runningCount})</span>
                 </button>
@@ -281,13 +303,13 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
                   aria-selected={filter === 'PRINTED'}
                   onClick={() => setFilter('PRINTED')}
                   className={cx(
-                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
+                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-1.5 sm:px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
                     filter === 'PRINTED'
                       ? 'bg-white text-emerald-950 shadow-[0_2px_8px_rgba(15,23,42,0.08)] ring-1 ring-emerald-500/40 font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/40',
                   )}
                 >
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)] shrink-0" />
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)] shrink-0 max-sm:hidden" />
                   <span>Printed</span>
                   <span className="tabular-nums text-slate-400 font-normal">({printedCount})</span>
                 </button>
@@ -298,15 +320,32 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
                   aria-selected={filter === 'PAID'}
                   onClick={() => setFilter('PAID')}
                   className={cx(
-                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
+                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-1.5 sm:px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150',
                     filter === 'PAID'
                       ? 'bg-white text-blue-950 shadow-[0_2px_8px_rgba(15,23,42,0.08)] ring-1 ring-blue-500/40 font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/40',
                   )}
                 >
-                  <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.8)] shrink-0" />
+                  <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.8)] shrink-0 max-sm:hidden" />
                   <span>Paid</span>
                   <span className="tabular-nums text-slate-400 font-normal">({paidCount})</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === 'PACKING'}
+                  onClick={() => setFilter('PACKING')}
+                  className={cx(
+                    'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-full px-1.5 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-150 sm:px-3',
+                    filter === 'PACKING'
+                      ? 'bg-white text-orange-950 shadow-[0_2px_8px_rgba(15,23,42,0.08)] ring-1 ring-[#ff8548]/50 font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/40',
+                  )}
+                >
+                  <Package size={12} className="shrink-0 text-[#ff8548] max-sm:hidden" aria-hidden />
+                  <span>Packing</span>
+                  <span className="tabular-nums text-slate-400 font-normal">({packingOrders.length})</span>
                 </button>
               </div>
 
@@ -325,7 +364,66 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
 
         {/* Content Area */}
         <div className="flex-1 p-2 sm:p-5 sm:p-6 pb-24 md:pb-6">
-          {loading ? (
+          {filter === 'PACKING' ? (
+            !ordersLoaded ? (
+              <div className="flex h-64 items-center justify-center gap-2 text-ink-2">
+                <Loader2 size={24} className="animate-spin text-accent" />
+                <span>Loading packing orders...</span>
+              </div>
+            ) : packingOrders.length === 0 ? (
+              <div className="flex h-64 flex-col items-center justify-center rounded-card border border-dashed border-line p-8 text-center">
+                <Package size={36} className="text-ink-3" />
+                <p className="mt-3 text-base font-semibold text-ink">No packing orders</p>
+                <p className="mt-1 text-sm text-ink-2">Packing (self pick &amp; delivery) orders will appear here as soon as they are placed.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+                {packingOrders.map((o) => {
+                  const mins = Math.max(0, Math.floor((now - Date.parse(o.createdAt)) / 60_000));
+                  const paid = o.paymentStatus === 'PAID' || o.paymentStatus === 'REFUNDED';
+                  const summary = o.items.slice(0, 2).map((i) => `${i.quantity}× ${i.itemName}`).join(', ') + (o.items.length > 2 ? ` +${o.items.length - 2} more` : '');
+                  return (
+                    <article key={o.id} className="flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-card sm:p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-sm font-extrabold tabular-nums text-slate-900">
+                          <Package size={15} className="text-[#ff8548]" aria-hidden /> #{o.orderNumber}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 tabular-nums">
+                          <Clock size={12} aria-hidden /> {mins}m
+                        </span>
+                      </div>
+                      {(o.customerName || o.customerPhone) && (
+                        <p className="truncate text-xs font-semibold text-slate-600">
+                          {o.customerName}
+                          {o.customerName && o.customerPhone ? ' · ' : ''}
+                          {o.customerPhone}
+                        </p>
+                      )}
+                      <p className="line-clamp-2 text-xs text-slate-500">{summary}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge status={o.status} />
+                        <PaymentBadge status={o.paymentStatus} method={o.paymentMethod} />
+                      </div>
+                      <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                        <span className="text-lg font-black tabular-nums tracking-tight text-slate-900">{formatPaise(o.billTotalPaise ?? o.subtotalPaise)}</span>
+                        {!paid ? (
+                          <Button size="sm" variant="primary" icon={CreditCard} onClick={() => onOpenOrderCheckout?.(o.id)} disabled={!onOpenOrderCheckout}>
+                            Settle
+                          </Button>
+                        ) : o.status === 'READY' ? (
+                          <Button size="sm" variant="success" icon={CheckCheck} loading={handingId === o.id} disabled={handingId === o.id} onClick={() => void handOver(o)}>
+                            Hand over
+                          </Button>
+                        ) : (
+                          <span className="rounded-full bg-fill px-3 py-1.5 text-[11px] font-semibold text-ink-2">Waiting for kitchen</span>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )
+          ) : loading ? (
             <div className="flex h-64 items-center justify-center gap-2 text-ink-2">
               <Loader2 size={24} className="animate-spin text-accent" />
               <span>Loading tables...</span>
