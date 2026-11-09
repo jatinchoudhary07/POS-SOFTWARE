@@ -21,7 +21,7 @@ import {
   UtensilsCrossed,
   type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useState, type Dispatch } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch } from 'react';
 import { api } from '../api/client';
 import type { TableDetailDTO, TableTileDTO } from '../api/types';
 import { cx } from '../lib/cx';
@@ -75,6 +75,9 @@ interface Props {
   onOpenTableCheckout?: (tableId: number) => void;
   onBackToTables?: () => void;
 }
+
+/** Last known running orders per table (kept while the cart is closed and reopened). */
+const detailCache = new Map<number, TableDetailDTO>();
 
 const fieldClass =
   'w-full rounded-full bg-slate-50 text-[14px] border border-slate-200/80 px-4 py-2 font-medium text-slate-800 shadow-2xs focus:border-[#ff8548] focus:bg-white focus:outline-none transition-all';
@@ -165,32 +168,38 @@ export function OrderPanel({
   const toast = useToast();
   const { subscribe } = useLiveOrders();
   const { print: printReceipt, printing } = useReceiptPrinter();
-  const [tableDetail, setTableDetail] = useState<TableDetailDTO | null>(null);
+  const watchedTableId = cart.orderType === 'DINE_IN' ? (cart.tableId ?? null) : null;
+  // The table's running orders. The last answer for each table is remembered, so reopening a table shows its bill at
+  // once instead of an empty cart while it loads, and a failed or late refresh never wipes what is already on screen.
+  const [tableDetail, setTableDetail] = useState<TableDetailDTO | null>(watchedTableId ? (detailCache.get(watchedTableId) ?? null) : null);
+  const detailTicket = useRef(0);
 
   const loadDetail = useCallback(async (tableId: number) => {
+    const ticket = ++detailTicket.current;
     try {
       const d = await api.getTableDetails(tableId);
+      if (ticket !== detailTicket.current) return; // a newer request (or another table) has taken over
+      detailCache.set(tableId, d);
       setTableDetail(d);
     } catch {
-      setTableDetail(null);
+      // keep showing the last known orders; the next live update will try again
     }
   }, []);
 
   useEffect(() => {
-    if (cart.orderType === 'DINE_IN' && cart.tableId) {
-      void loadDetail(cart.tableId);
+    if (watchedTableId) {
+      setTableDetail(detailCache.get(watchedTableId) ?? null);
+      void loadDetail(watchedTableId);
     } else {
+      detailTicket.current++;
       setTableDetail(null);
     }
-  }, [cart.orderType, cart.tableId, loadDetail]);
+  }, [watchedTableId, loadDetail]);
 
   useEffect(() => {
-    return subscribe(() => {
-      if (cart.orderType === 'DINE_IN' && cart.tableId) {
-        void loadDetail(cart.tableId);
-      }
-    });
-  }, [subscribe, cart.orderType, cart.tableId, loadDetail]);
+    if (!watchedTableId) return;
+    return subscribe(() => void loadDetail(watchedTableId));
+  }, [subscribe, watchedTableId, loadDetail]);
 
   const newDraftTotal = cartSubtotal(cart);
   const count = cartItemCount(cart);
@@ -501,9 +510,9 @@ export function OrderPanel({
         {/* Purr'Coffee Financial Summary */}
         <div className="space-y-1.5 text-xs text-slate-500">
           <div className="flex justify-between">
-            <span>Items</span>
+            <span>{existingOrders.length > 0 ? 'Items (all orders)' : 'Items'}</span>
             <span className="font-semibold text-slate-800 tabular-nums">
-              {formatPaise(newDraftTotal)}
+              {formatPaise(runningGrandTotal)}
             </span>
           </div>
           <div className="flex justify-between">
