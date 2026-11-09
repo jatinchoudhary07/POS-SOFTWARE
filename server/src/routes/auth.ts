@@ -7,6 +7,9 @@ import { MAX_PASSWORD_LENGTH } from '../lib/password';
 import { LOGIN_NAME_MESSAGE, LOGIN_NAME_PATTERN, type AuthService } from '../services/authService';
 
 // Username + password only. There is deliberately no "role" field: the role comes from the account.
+/** Browsers cap a cookie's life at about 400 days, so that is the longest we ask for. */
+const COOKIE_LIFETIME_MS = 400 * 24 * 60 * 60_000;
+
 const loginSchema = z
   .object({
     username: z.string().trim().min(1, 'Enter your username').max(64),
@@ -63,8 +66,9 @@ export function authRouter(auth: AuthService, opts: AuthRouterOptions): Router {
   router.post('/login', async (req, res) => {
     const { username, password } = loginSchema.parse(req.body);
     const { token, session } = await auth.login(username, password, req.socket.remoteAddress ?? 'unknown');
-    // Session cookie lifetime follows the absolute limit; the server enforces idle expiry itself.
-    res.cookie(SESSION_COOKIE, token, cookieOptions(req));
+    // A long-lived cookie (not a browser "session" cookie that a phone may drop when the app is closed), so the
+    // person stays signed in until they sign out. The server still enforces its own limits, if any are configured.
+    res.cookie(SESSION_COOKIE, token, cookieOptions(req, new Date(Date.now() + COOKIE_LIFETIME_MS)));
     res.json({ user: session.user, expiresAt: session.expiresAt.toISOString() });
   });
 
@@ -75,8 +79,10 @@ export function authRouter(auth: AuthService, opts: AuthRouterOptions): Router {
     res.json({ ok: true });
   });
 
-  router.get('/me', (_req, res) => {
+  router.get('/me', (req, res) => {
     const s = requireSession(res);
+    // Every time the app is opened the cookie's life starts over.
+    res.cookie(SESSION_COOKIE, sessionToken(req)!, cookieOptions(req, new Date(Date.now() + COOKIE_LIFETIME_MS)));
     res.json({ user: s.user, expiresAt: s.expiresAt.toISOString() });
   });
 

@@ -111,6 +111,20 @@ describe('per-client limit', () => {
   });
 });
 
+describe('staying signed in', () => {
+  it('sets a long-lived cookie (not a browser session cookie) and renews it every time the app is opened', async () => {
+    const ctx = setupTestApp();
+    const res = await login(ctx, USERNAMES.RECEPTION, PASSWORDS.RECEPTION).expect(200);
+    const set = (res.headers['set-cookie'] as unknown as string[])[0];
+    const expires = new Date(/Expires=([^;]+)/.exec(set)![1]).getTime();
+    expect(expires - Date.now()).toBeGreaterThan(300 * 24 * 3600_000); // about 400 days, so a phone keeps it
+    const me = await request(ctx.app).get('/api/auth/me').set('Cookie', cookieOf(res)).expect(200);
+    const renewed = new Date(/Expires=([^;]+)/.exec((me.headers['set-cookie'] as unknown as string[])[0])![1]).getTime();
+    expect(renewed).toBeGreaterThanOrEqual(expires - 5_000);
+    expect(set).toMatch(/HttpOnly/);
+  });
+});
+
 describe('logout and expiry', () => {
   it('logout invalidates the session server-side and clears the cookie', async () => {
     const ctx = setupTestApp();

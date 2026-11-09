@@ -14,8 +14,9 @@ const envSchema = z.object({
   DATABASE_PATH: z.string().default('./data/pos.db'),
   CORS_ORIGINS: z.string().default(''),
   // Sign-in sessions: inactivity timeout (sliding) and absolute maximum.
-  SESSION_IDLE_HOURS: z.coerce.number().positive().max(24 * 30).default(12),
-  SESSION_MAX_DAYS: z.coerce.number().positive().max(90).default(7),
+  // 0 (the default) = never: a login stays signed in until the person signs out themselves.
+  SESSION_IDLE_HOURS: z.coerce.number().min(0).max(24 * 365 * 10).default(0),
+  SESSION_MAX_DAYS: z.coerce.number().min(0).max(3650).default(0),
   // 'auto' marks the cookie Secure only when the request came over HTTPS.
   COOKIE_SECURE: z.enum(['auto', 'true', 'false']).default('auto'),
   // Removed in Day 4 (replaced by logins). Only read to warn if it is still set.
@@ -42,6 +43,9 @@ const envSchema = z.object({
 
 const env = envSchema.parse(process.env);
 
+/** "Never": ten years, which is far longer than any phone will outlive. */
+const NEVER_MS = 10 * 365 * 24 * 60 * 60_000;
+
 export const config = {
   env: env.NODE_ENV,
   port: env.PORT,
@@ -60,8 +64,8 @@ export const config = {
     env.TLS_CERT_FILE || env.TLS_KEY_FILE
       ? { certFile: path.resolve(process.cwd(), env.TLS_CERT_FILE), keyFile: path.resolve(process.cwd(), env.TLS_KEY_FILE) }
       : null,
-  sessionIdleMs: env.SESSION_IDLE_HOURS * 60 * 60_000,
-  sessionMaxMs: env.SESSION_MAX_DAYS * 24 * 60 * 60_000,
+  sessionIdleMs: env.SESSION_IDLE_HOURS > 0 ? env.SESSION_IDLE_HOURS * 60 * 60_000 : NEVER_MS,
+  sessionMaxMs: env.SESSION_MAX_DAYS > 0 ? env.SESSION_MAX_DAYS * 24 * 60 * 60_000 : NEVER_MS,
   cookieSecure: env.COOKIE_SECURE === 'auto' ? ('auto' as const) : env.COOKIE_SECURE === 'true',
   legacyAdminTokenSet: env.ADMIN_TOKEN !== '',
   restaurantName: env.RESTAURANT_NAME,
