@@ -32,6 +32,7 @@ import { Button, IconButton } from './ui/Button';
 import { inputClass, labelClass } from './ui/fields';
 import { METHOD_LABELS, PaymentBadge } from './ui/PaymentBadge';
 import { SegmentedControl } from './ui/SegmentedControl';
+import { PackTag } from './ui/PackTag';
 import { StatusBadge } from './ui/StatusBadge';
 import { useToast } from './ui/Toast';
 
@@ -146,6 +147,7 @@ function BillCard({ checkout, editable, onDiscount, collapseItems }: { checkout:
               <span className="block truncate text-xs font-medium lg:overflow-visible lg:whitespace-normal lg:text-base" title={i.itemName}>
                 <span className="tabular-nums text-ink-2 lg:hidden">{i.quantity}× </span>
                 {i.itemName}
+                {i.packed && <PackTag className="ml-1.5 align-middle" />}
               </span>
               <span className="hidden text-sm text-ink-2 tabular-nums lg:block">
                 {i.quantity} × {formatPaise(i.unitPricePaise)}

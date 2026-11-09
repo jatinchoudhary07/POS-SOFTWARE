@@ -34,6 +34,8 @@ const orderLinesSchema = z
       .int('Quantity must be a whole number')
       .min(1, 'Quantity must be at least 1')
       .max(MAX_QUANTITY_PER_LINE, `Quantity must be at most ${MAX_QUANTITY_PER_LINE}`),
+    /** "Pack this": the guest is eating in but takes this dish away. Only meaningful on dine-in orders. */
+    packed: z.boolean().optional(),
   }),
   { error: 'items must be a list' },
   )

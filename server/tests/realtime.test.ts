@@ -211,7 +211,7 @@ describe('Socket.IO authentication and rooms', () => {
     expect(Object.keys(kCreated[0]).sort()).toEqual(
       ['createdAt', 'id', 'itemCount', 'items', 'notes', 'orderNumber', 'orderType', 'status', 'tableNumber', 'updatedAt'].sort(),
     );
-    expect(kCreated[0].items).toEqual([{ id: expect.any(Number), itemName: 'Paneer Tikka', quantity: 1, sent: false }]);
+    expect(kCreated[0].items).toEqual([{ id: expect.any(Number), itemName: 'Paneer Tikka', quantity: 1, sent: false, packed: false }]);
     expect(JSON.stringify(kCreated[0])).not.toMatch(/Paise|payment/i);
 
     // Billing + payment: staff are told, the kitchen is not.

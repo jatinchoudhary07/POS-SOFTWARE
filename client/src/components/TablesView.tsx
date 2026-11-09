@@ -30,6 +30,7 @@ import { useReceiptPrinter } from './ReceiptPrinter';
 import { Button, IconButton } from './ui/Button';
 import { PaymentBadge } from './ui/PaymentBadge';
 import { StatusBadge } from './ui/StatusBadge';
+import { PackTag } from './ui/PackTag';
 import { useToast } from './ui/Toast';
 
 interface Props {
@@ -881,7 +882,7 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
                           {o.items.map((i) => (
                             <div key={i.id} className="flex justify-between text-ink">
                               <span>
-                                <strong className="tabular-nums font-semibold">{i.quantity}&times;</strong> {i.itemName}
+                                <strong className="tabular-nums font-semibold">{i.quantity}&times;</strong> {i.itemName} {i.packed && <PackTag className="ml-1 align-middle" />}
                               </span>
                               <span className="tabular-nums text-ink-2">{formatPaise(i.lineTotalPaise)}</span>
                             </div>

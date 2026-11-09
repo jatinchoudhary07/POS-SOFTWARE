@@ -203,7 +203,7 @@ export const api = {
 
   cancelOrder: (id: number, reason: string) =>
     request<{ order: Order }>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  replaceOrderItems: (id: number, items: { menuItemId: number; quantity: number }[], notes?: string) =>
+  replaceOrderItems: (id: number, items: { menuItemId: number; quantity: number; packed?: boolean }[], notes?: string) =>
     request<{ order: Order }>(`/orders/${id}/items`, { method: 'PUT', body: JSON.stringify({ items, notes }) }),
 
   // --- Tables & Table Billing ---

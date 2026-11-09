@@ -43,6 +43,8 @@ export interface OrderItem {
   lineTotalPaise: number;
   /** false for items added to a running order that the kitchen has not taken yet */
   sentToKitchen?: boolean;
+  /** a dine-in guest asked for this dish to be packed to take away */
+  packed?: boolean;
 }
 
 export type OrderPaymentStatus = 'UNPAID' | 'PAID' | 'FAILED' | 'UNCERTAIN' | 'REFUNDED';
@@ -82,7 +84,7 @@ export interface CreateOrderRequest {
   /** Optional: who the order is for */
   customerName?: string;
   customerPhone?: string;
-  items: { menuItemId: number; quantity: number }[];
+  items: { menuItemId: number; quantity: number; packed?: boolean }[];
 }
 
 export interface TableDTO {
@@ -264,7 +266,7 @@ export interface KitchenOrder {
   itemCount: number;
   createdAt: string;
   updatedAt: string;
-  items: { id: number; itemName: string; quantity: number; sent?: boolean }[];
+  items: { id: number; itemName: string; quantity: number; sent?: boolean; packed?: boolean }[];
 }
 
 /** Orders on the live screens: full orders for staff, kitchen orders for the kitchen login. */

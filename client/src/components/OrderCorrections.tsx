@@ -9,6 +9,7 @@ import { BottomSheet } from './ui/BottomSheet';
 import { Button } from './ui/Button';
 import { FilterMenu } from './ui/FilterMenu';
 import { inputClass, labelClass } from './ui/fields';
+import { PackTag } from './ui/PackTag';
 import { useToast } from './ui/Toast';
 
 const REASONS = ['Customer left', 'Wrong order', 'Duplicate order', 'Item not available', 'Changed mind'];
@@ -85,6 +86,8 @@ interface EditLine {
   name: string;
   unitPricePaise: number;
   quantity: number;
+  /** packed to take away (dine-in orders only) */
+  packed?: boolean;
 }
 
 const MAX_LINE_QTY = 99;
@@ -182,7 +185,7 @@ export function EditOrderSheet({ order, onClose }: { order: Order; onClose: () =
     () =>
       order.items
         .filter((i) => i.menuItemId !== null)
-        .map<EditLine>((i) => ({ key: `o${i.id}`, menuItemId: i.menuItemId!, name: i.itemName, unitPricePaise: i.unitPricePaise, quantity: i.quantity })),
+        .map<EditLine>((i) => ({ key: `o${i.id}`, menuItemId: i.menuItemId!, name: i.itemName, unitPricePaise: i.unitPricePaise, quantity: i.quantity, packed: i.packed === true })),
     [order],
   );
   const [lines, setLines] = useState<EditLine[]>(original);
@@ -197,7 +200,7 @@ export function EditOrderSheet({ order, onClose }: { order: Order; onClose: () =
   const signature = (list: EditLine[]) =>
     list
       .filter((l) => l.quantity > 0)
-      .map((l) => `${l.menuItemId}:${l.quantity}`)
+      .map((l) => `${l.menuItemId}:${l.quantity}:${l.packed ? 1 : 0}`)
       .sort()
       .join(',');
   const changed = notes.trim() !== (order.notes ?? '') || signature(lines) !== signature(original);
@@ -206,7 +209,7 @@ export function EditOrderSheet({ order, onClose }: { order: Order; onClose: () =
   /** Adds a dish (one more if it is already on the order), or swaps it in for the line being replaced. */
   function pick(item: MenuItem) {
     setLines((ls) => {
-      const existing = ls.find((l) => l.menuItemId === item.id);
+      const existing = ls.find((l) => l.menuItemId === item.id && !l.packed);
       const target = picker?.replaceKey ? ls.find((l) => l.key === picker.replaceKey) : undefined;
       if (target) {
         if (existing && existing.key !== target.key) {
@@ -228,7 +231,7 @@ export function EditOrderSheet({ order, onClose }: { order: Order; onClose: () =
     try {
       const { order: updated } = await api.replaceOrderItems(
         order.id,
-        kept.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity })),
+        kept.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, ...(l.packed ? { packed: true } : {}) })),
         notes.trim(),
       );
       ingest(updated);
@@ -252,7 +255,7 @@ export function EditOrderSheet({ order, onClose }: { order: Order; onClose: () =
             {lines.map((l) => (
               <li key={l.key} className={cx('flex items-center gap-2 rounded-2xl bg-subtle p-3 transition-opacity', l.quantity === 0 && 'opacity-50')}>
                 <span className="min-w-0 flex-1">
-                  <span className={cx('block truncate text-sm font-semibold', l.quantity === 0 && 'line-through')}>{l.name}</span>
+                  <span className={cx('block truncate text-sm font-semibold', l.quantity === 0 && 'line-through')}>{l.name} {l.packed && <PackTag className="ml-1 align-middle" />}</span>
                   <span className="text-xs text-ink-2 tabular-nums">{formatPaise(l.unitPricePaise)} each</span>
                 </span>
                 <button

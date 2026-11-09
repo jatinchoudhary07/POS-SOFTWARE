@@ -104,4 +104,16 @@ describe('cart', () => {
     expect(r.requestId).not.toBe(s.requestId);
     expect(r.orderType).toBe('TAKEAWAY');
   });
+
+  it('marks a dine-in batch as packed, sends the flag per dish, and clears it after sending or for takeaway', () => {
+    let s = run([{ type: 'setOrderType', orderType: 'DINE_IN' }, { type: 'setTable', tableNumber: '3', tableId: 3 }, { type: 'add', item: item(1, 100) }]);
+    expect(toCreateOrderRequest(s).items).toEqual([{ menuItemId: 1, quantity: 1 }]); // nothing extra unless asked
+    s = cartReducer(s, { type: 'setPacked', packed: true });
+    expect(toCreateOrderRequest(s).items).toEqual([{ menuItemId: 1, quantity: 1, packed: true }]);
+    expect(cartReducer(s, { type: 'reset' }).packed).toBe(false); // the next batch starts as eat-in
+    const t = cartReducer(s, { type: 'setOrderType', orderType: 'TAKEAWAY' });
+    expect(t.packed).toBe(false);
+    expect(cartReducer(t, { type: 'setPacked', packed: true }).packed).toBe(false); // packing orders are all packed already
+    expect(toCreateOrderRequest(t).items).toEqual([{ menuItemId: 1, quantity: 1 }]);
+  });
 });

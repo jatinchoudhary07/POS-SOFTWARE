@@ -151,6 +151,8 @@ export const orderItems = sqliteTable(
     lineTotalPaise: integer('line_total_paise').notNull(),
     // false while the kitchen has not yet taken this line (items added to a running order stay false until then).
     kitchenDone: integer('kitchen_done', { mode: 'boolean' }).notNull().default(false),
+    // true when a dine-in guest asked for this dish to be packed to take away (same bill, kitchen packs it).
+    packed: integer('packed', { mode: 'boolean' }).notNull().default(false),
     createdAt: timestamps.createdAt,
   },
   (t) => [

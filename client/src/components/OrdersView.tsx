@@ -35,6 +35,7 @@ import { useReceiptPrinter } from './ReceiptPrinter';
 import { Button, IconButton } from './ui/Button';
 import { ConnectionBanner } from './ui/ConnectionBanner';
 import { FilterMenu } from './ui/FilterMenu';
+import { PackTag } from './ui/PackTag';
 import { PaymentBadge } from './ui/PaymentBadge';
 import { useToast } from './ui/Toast';
 
@@ -195,6 +196,7 @@ function OrderCard({
                 {i.quantity}&times;
               </span>
               <span className="truncate font-medium text-ink">{i.itemName}</span>
+              {i.packed && <PackTag />}
             </div>
             <span className="shrink-0 tabular-nums font-semibold text-ink-2">{formatPaise(i.lineTotalPaise)}</span>
           </li>

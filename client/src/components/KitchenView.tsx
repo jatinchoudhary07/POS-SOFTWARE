@@ -24,6 +24,7 @@ import { useLiveOrders } from '../state/LiveOrders';
 import { kitchenLanes } from '../state/orders';
 import { useStatusAction } from '../state/useStatusAction';
 import { Button } from './ui/Button';
+import { PackTag } from './ui/PackTag';
 import { ConnectionBanner } from './ui/ConnectionBanner';
 import { SegmentedControl } from './ui/SegmentedControl';
 
@@ -124,6 +125,11 @@ function Ticket({
         )}
       </div>
 
+      {dineIn && order.items.some((i) => i.packed) && (
+        <p className="mt-3 inline-flex items-center gap-1.5 rounded-control bg-accent-tint px-2.5 py-1 text-xs font-bold text-accent">
+          <Package size={13} aria-hidden /> Some dishes are to be packed to take away
+        </p>
+      )}
       {hasAdded && (
         <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-white">
           <PlusCircle size={13} aria-hidden /> Items added to this order
@@ -137,6 +143,7 @@ function Ticket({
             <li key={i.id} className={cx('flex items-baseline gap-2 text-[17px] leading-snug', done && 'text-ink-3')}>
               <span className="w-9 shrink-0 font-semibold tabular-nums">{i.quantity}×</span>
               <span className={cx('font-medium', done && 'line-through decoration-1')}>{i.itemName}</span>
+              {i.packed && <PackTag large className="self-center" />}
               {hasAdded && !i.sent && <span className="ml-auto rounded-full bg-accent-tint px-2 py-0.5 text-[11px] font-bold text-accent">NEW</span>}
               {done && <span className="ml-auto text-[11px] font-semibold">sent</span>}
             </li>

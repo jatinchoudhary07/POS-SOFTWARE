@@ -30,6 +30,8 @@ export interface OrderItemDTO {
   lineTotalPaise: number;
   /** false for lines added to a running order that the kitchen has not taken yet */
   sentToKitchen: boolean;
+  /** a dine-in guest asked for this dish to be packed to take away */
+  packed: boolean;
 }
 
 export interface OrderDTO {
@@ -109,6 +111,7 @@ function toOrderDTO(o: OrderWithItems, db?: DB): OrderDTO {
       quantity: i.quantity,
       lineTotalPaise: i.lineTotalPaise,
       sentToKitchen: i.kitchenDone,
+      packed: i.packed,
     })),
   };
 }
@@ -147,7 +150,7 @@ export interface KitchenOrderDTO {
   itemCount: number;
   createdAt: string;
   updatedAt: string;
-  items: { id: number; itemName: string; quantity: number; /** already taken by the kitchen (shown dimmed when new items were added) */ sent: boolean }[];
+  items: { id: number; itemName: string; quantity: number; /** already taken by the kitchen (shown dimmed when new items were added) */ sent: boolean; /** to be packed to take away */ packed: boolean }[];
 }
 
 export function toKitchenOrder(o: OrderDTO): KitchenOrderDTO {
@@ -161,7 +164,7 @@ export function toKitchenOrder(o: OrderDTO): KitchenOrderDTO {
     itemCount: o.itemCount,
     createdAt: o.createdAt,
     updatedAt: o.updatedAt,
-    items: o.items.map((i) => ({ id: i.id, itemName: i.itemName, quantity: i.quantity, sent: i.sentToKitchen })),
+    items: o.items.map((i) => ({ id: i.id, itemName: i.itemName, quantity: i.quantity, sent: i.sentToKitchen, packed: i.packed })),
   };
 }
 
@@ -220,23 +223,32 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
     return undefined;
   }
 
-  /** Merge repeated lines for the same item (e.g. [{id:1,q:2},{id:1,q:1}] -> q:3) and cap quantities. */
-  function mergeQuantities(items: { menuItemId: number; quantity: number }[]) {
-    const quantities = new Map<number, number>();
+  /**
+   * Merge repeated lines for the same item (e.g. [{id:1,q:2},{id:1,q:1}] -> q:3) and cap quantities.
+   * A packed line and an eat-in line of the same dish stay separate. Only dine-in orders can have packed lines.
+   */
+  type RawLine = { menuItemId: number; quantity: number; packed?: boolean };
+  type MergedLine = { menuItemId: number; quantity: number; packed: boolean };
+  function mergeQuantities(items: RawLine[], allowPacked = true): MergedLine[] {
+    const merged = new Map<string, MergedLine>();
     for (const line of items) {
-      quantities.set(line.menuItemId, (quantities.get(line.menuItemId) ?? 0) + line.quantity);
+      const packed = allowPacked && line.packed === true;
+      const key = `${line.menuItemId}:${packed ? 1 : 0}`;
+      const have = merged.get(key);
+      if (have) have.quantity += line.quantity;
+      else merged.set(key, { menuItemId: line.menuItemId, quantity: line.quantity, packed });
     }
-    for (const [menuItemId, quantity] of quantities) {
-      if (quantity > MAX_QUANTITY_PER_LINE) {
-        throw new AppError(400, 'VALIDATION_ERROR', `Quantity for item ${menuItemId} must be at most ${MAX_QUANTITY_PER_LINE}`);
+    for (const m of merged.values()) {
+      if (m.quantity > MAX_QUANTITY_PER_LINE) {
+        throw new AppError(400, 'VALIDATION_ERROR', `Quantity for item ${m.menuItemId} must be at most ${MAX_QUANTITY_PER_LINE}`);
       }
     }
-    return quantities;
+    return [...merged.values()];
   }
 
   /** Looks the items up and prices them from the menu; refuses unknown or unavailable items. */
-  function resolveLines(tx: Pick<DB, 'select'>, quantities: Map<number, number>) {
-    const ids = [...quantities.keys()];
+  function resolveLines(tx: Pick<DB, 'select'>, wanted: MergedLine[]) {
+    const ids = [...new Set(wanted.map((w) => w.menuItemId))];
     const found = tx
       .select({
         id: menuItems.id,
@@ -262,10 +274,9 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
       });
     }
 
-    return ids.map((id) => {
+    return wanted.map(({ menuItemId: id, quantity, packed }) => {
       const item = byId.get(id)!;
-      const quantity = quantities.get(id)!;
-      return { menuItemId: id, itemName: item.name, unitPricePaise: item.pricePaise, quantity, lineTotalPaise: lineTotalPaise(item.pricePaise, quantity) };
+      return { menuItemId: id, itemName: item.name, unitPricePaise: item.pricePaise, quantity, packed, lineTotalPaise: lineTotalPaise(item.pricePaise, quantity) };
     });
   }
 
@@ -402,7 +413,7 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
         }
         dropOpenBills(tx, id);
 
-        const lines = resolveLines(tx, mergeQuantities(input.items));
+        const lines = resolveLines(tx, mergeQuantities(input.items, order.orderType === 'DINE_IN'));
         const at = now();
         tx.delete(orderItems).where(eq(orderItems.orderId, id)).run();
         tx.insert(orderItems).values(lines.map((l) => ({ ...l, orderId: id, createdAt: at }))).run();
@@ -425,7 +436,7 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
       const existing = findByClientRequestId(input.clientRequestId);
       if (existing) return { order: existing.order, duplicate: true, merged: existing.merged };
 
-      const quantities = mergeQuantities(input.items);
+      const quantities = mergeQuantities(input.items, input.orderType === 'DINE_IN');
 
       // better-sqlite3 transactions are synchronous, so nothing else can write between
       // reading the last order number and inserting the new one.
@@ -485,7 +496,7 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
             const open = tx
               .select()
               .from(orderItems)
-              .where(and(eq(orderItems.orderId, target.id), eq(orderItems.menuItemId, line.menuItemId), eq(orderItems.kitchenDone, false)))
+              .where(and(eq(orderItems.orderId, target.id), eq(orderItems.menuItemId, line.menuItemId), eq(orderItems.kitchenDone, false), eq(orderItems.packed, line.packed)))
               .get();
             if (open) {
               const quantity = open.quantity + line.quantity;

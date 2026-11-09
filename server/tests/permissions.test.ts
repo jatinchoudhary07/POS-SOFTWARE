@@ -79,7 +79,7 @@ describe('role-specific rules', () => {
     expect(res.body.orders.length).toBeGreaterThan(0);
     const text = JSON.stringify(res.body);
     expect(text).not.toMatch(/Paise|payment|bill/i);
-    expect(res.body.orders[0].items[0]).toEqual({ id: expect.any(Number), itemName: 'Paneer Tikka', quantity: 1, sent: false });
+    expect(res.body.orders[0].items[0]).toEqual({ id: expect.any(Number), itemName: 'Paneer Tikka', quantity: 1, sent: false, packed: false });
     // ...also in the response to its own status change.
     const upd = await ctx.as('KITCHEN').patch(`/api/orders/${res.body.orders[0].id}/status`).send({ status: 'PREPARING' }).expect(200);
     expect(JSON.stringify(upd.body)).not.toMatch(/Paise|payment/i);

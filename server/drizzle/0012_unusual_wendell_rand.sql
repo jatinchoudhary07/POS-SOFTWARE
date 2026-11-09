@@ -1,0 +1,1 @@
+ALTER TABLE `order_items` ADD `packed` integer DEFAULT false NOT NULL;

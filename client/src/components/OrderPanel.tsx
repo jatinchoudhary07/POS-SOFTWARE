@@ -45,6 +45,7 @@ import {
 } from '../state/cart';
 import { useReceiptPrinter } from './ReceiptPrinter';
 import { Button, IconButton } from './ui/Button';
+import { PackTag } from './ui/PackTag';
 import { StatusBadge } from './ui/StatusBadge';
 import { useToast } from './ui/Toast';
 
@@ -364,6 +365,7 @@ export function OrderPanel({
                     <li key={i.id} className="flex justify-between items-baseline text-slate-700">
                       <span className="truncate pr-2">
                         <strong className="font-bold mr-1 text-slate-900">{i.quantity}&times;</strong> {i.itemName}
+                        {i.packed && <PackTag className="ml-1.5 align-middle" />}
                       </span>
                       <span className="font-semibold text-slate-900 shrink-0">
                         {formatPaise(i.lineTotalPaise)}
@@ -381,7 +383,7 @@ export function OrderPanel({
                   <span className="font-bold text-xs uppercase tracking-wide text-[#ff8548]">
                     New Items (KOT #{existingOrders.length + 1})
                   </span>
-                  <span className="text-[11px] font-bold text-[#ff8548]">Ready to send</span>
+                  <span className="text-[11px] font-bold text-[#ff8548]">{cart.packed ? 'To pack' : 'Ready to send'}</span>
                 </div>
                 <ul className="divide-y divide-slate-100">
                   {cart.lines.map((l) => (
@@ -421,6 +423,33 @@ export function OrderPanel({
           variant === 'sheet' ? 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]' : '',
         )}
       >
+        {/* Dine-in guest wants these dishes packed: same table, same bill, the kitchen sees "PACK" on each */}
+        {cart.orderType === 'DINE_IN' && cart.lines.length > 0 && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cart.packed}
+            onClick={() => dispatch({ type: 'setPacked', packed: !cart.packed })}
+            className={cx(
+              'flex w-full items-center gap-2.5 rounded-2xl border px-3 py-1.5 text-left transition-all active:scale-[0.99]',
+              cart.packed ? 'border-[#ff8548] bg-[#ffede3]' : 'border-slate-200/80 bg-white',
+            )}
+          >
+            <span className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-full', cart.packed ? 'bg-[#ff8548] text-white' : 'bg-slate-100 text-slate-400')}>
+              <Package size={16} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold leading-tight text-slate-900">Pack these items</span>
+              <span className="block truncate text-[11px] leading-tight text-slate-500">
+                {cart.packed ? 'Kitchen packs them. Same bill.' : 'Guest takes these away'}
+              </span>
+            </span>
+            <span className={cx('relative h-6 w-10 shrink-0 rounded-full transition-colors', cart.packed ? 'bg-[#ff8548]' : 'bg-slate-300')} aria-hidden>
+              <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', cart.packed ? 'left-[18px]' : 'left-0.5')} />
+            </span>
+          </button>
+        )}
+
         {/* Optional customer details: small labels above the fields keep the fields themselves clean */}
         <div className="grid grid-cols-2 gap-2">
           <label className="block min-w-0">

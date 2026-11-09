@@ -89,7 +89,7 @@ export function Receipt({ data, format }: { data: ReceiptData | TableReceiptDTO;
         <tbody>
           {items.map((i, idx) => (
             <tr key={`${i.id}-${idx}`}>
-              <td>{i.itemName}</td>
+              <td>{i.itemName}{i.packed ? ' (Pack)' : ''}</td>
               <td className="num">{i.quantity}</td>
               <td className="num">{formatPaise(i.unitPricePaise)}</td>
               <td className="num">{formatPaise(i.lineTotalPaise)}</td>

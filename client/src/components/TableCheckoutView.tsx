@@ -29,6 +29,7 @@ import { Button, IconButton } from './ui/Button';
 import { inputClass, labelClass } from './ui/fields';
 import { METHOD_LABELS, PaymentBadge } from './ui/PaymentBadge';
 import { SegmentedControl } from './ui/SegmentedControl';
+import { PackTag } from './ui/PackTag';
 import { StatusBadge } from './ui/StatusBadge';
 import { useToast } from './ui/Toast';
 
@@ -326,7 +327,7 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
                     {o.items.map((i) => (
                       <li key={i.id} className="flex justify-between">
                         <span>
-                          <strong className="text-ink">{i.quantity}&times;</strong> {i.itemName}
+                          <strong className="text-ink">{i.quantity}&times;</strong> {i.itemName} {i.packed && <PackTag className="ml-1 align-middle" />}
                         </span>
                         <span className="tabular-nums font-medium text-ink">{formatPaise(i.lineTotalPaise)}</span>
                       </li>

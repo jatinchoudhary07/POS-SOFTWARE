@@ -45,6 +45,6 @@ export function parseDraft(v: unknown): CartState | null {
   );
   // drafts saved before customer details existed have no such fields
   return linesOk
-    ? ({ ...d, customerName: typeof d.customerName === 'string' ? d.customerName : '', customerPhone: typeof d.customerPhone === 'string' ? d.customerPhone : '' } as unknown as CartState)
+    ? ({ ...d, customerName: typeof d.customerName === 'string' ? d.customerName : '', customerPhone: typeof d.customerPhone === 'string' ? d.customerPhone : '', packed: d.packed === true && d.orderType === 'DINE_IN' } as unknown as CartState)
     : null;
 }

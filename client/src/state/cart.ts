@@ -30,6 +30,8 @@ export interface CartState {
   /** Optional: who the order is for */
   customerName: string;
   customerPhone: string;
+  /** Dine-in only: the dishes in this batch are to be packed to take away (same table, same bill). */
+  packed: boolean;
   lines: CartLine[];
 }
 
@@ -42,13 +44,14 @@ export type CartAction =
   | { type: 'setOrderType'; orderType: OrderType }
   | { type: 'setTable'; tableNumber: string; tableId?: number | null }
   | { type: 'setNotes'; notes: string }
+  | { type: 'setPacked'; packed: boolean }
   | { type: 'setCustomer'; name?: string; phone?: string }
   | { type: 'syncMenu'; categories: MenuCategory[] }
   | { type: 'markUnavailable'; menuItemIds: number[] }
   | { type: 'reset' };
 
 export function createEmptyCart(orderType: OrderType = 'DINE_IN'): CartState {
-  return { requestId: newRequestId(), orderType, tableId: null, tableNumber: '', notes: '', customerName: '', customerPhone: '', lines: [] };
+  return { requestId: newRequestId(), orderType, tableId: null, tableNumber: '', notes: '', customerName: '', customerPhone: '', packed: false, lines: [] };
 }
 
 const clampQty = (n: number) => (Number.isFinite(n) ? Math.min(MAX_QTY, Math.max(1, Math.trunc(n))) : 1);
@@ -93,6 +96,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         orderType: action.orderType,
         tableNumber: action.orderType === 'DINE_IN' ? state.tableNumber : '',
         tableId: action.orderType === 'DINE_IN' ? state.tableId : null,
+        packed: action.orderType === 'DINE_IN' ? state.packed : false,
       };
     case 'setTable':
       return {
@@ -102,6 +106,8 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
       };
     case 'setNotes':
       return { ...state, notes: action.notes.slice(0, MAX_NOTES) };
+    case 'setPacked':
+      return { ...state, packed: state.orderType === 'DINE_IN' && action.packed };
     case 'setCustomer':
       return {
         ...state,
@@ -166,6 +172,6 @@ export function toCreateOrderRequest(s: CartState): CreateOrderRequest {
     ...(notes ? { notes } : {}),
     ...(customerName ? { customerName } : {}),
     ...(customerPhone ? { customerPhone } : {}),
-    items: s.lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity })),
+    items: s.lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, ...(s.orderType === 'DINE_IN' && s.packed ? { packed: true } : {}) })),
   };
 }
