@@ -38,6 +38,8 @@ interface Props {
   onOpenTableCheckout: (tableId: number) => void;
   onOpenOrderCheckout?: (orderId: number) => void;
   onStartPackingOrder: () => void;
+  /** Changes each time the Tables button is tapped while already on Tables: go back to the All tab. */
+  homeSignal?: number;
 }
 
 const KITCHEN_STAGE = {
@@ -55,7 +57,7 @@ const KITCHEN_STAGE = {
 let tilesCache: { userId: number; tiles: TableTileDTO[] } | null = null;
 const BACKGROUND_REFRESH_MS = 20_000;
 
-export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOrderCheckout, onStartPackingOrder }: Props) {
+export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOrderCheckout, onStartPackingOrder, homeSignal = 0 }: Props) {
   const toast = useToast();
   const { subscribe, lastSyncedAt, orders, loaded: ordersLoaded, updateStatus } = useLiveOrders();
   const me = useUser();
@@ -72,6 +74,17 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
   const [detail, setDetail] = useState<TableDetailDTO | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  // The Tables button in the nav was tapped again: back to the All tab, with any open table closed.
+  const firstHome = useRef(true);
+  useEffect(() => {
+    if (firstHome.current) {
+      firstHome.current = false;
+      return;
+    }
+    setFilter('ALL');
+    setSelectedTableId(null);
+  }, [homeSignal]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15_000);

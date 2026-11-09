@@ -90,6 +90,15 @@ export default function App() {
     if (window.location.pathname !== pathOf(r)) window.history.pushState(null, '', pathOf(r));
   }, []);
   const setView = useCallback((v: NavView) => navigate({ view: v }), [navigate]);
+  // Tapping Tables while already on Tables brings it back to its first screen (the All tab).
+  const [tablesHome, setTablesHome] = useState(0);
+  const goView = useCallback(
+    (v: NavView) => {
+      if (v === 'tables' && window.location.pathname === pathOf({ view: 'tables' })) setTablesHome((n) => n + 1);
+      setView(v);
+    },
+    [setView],
+  );
   const openCheckout = useCallback((orderId: number) => navigate({ view: 'checkout', orderId }), [navigate]);
   const openTableCheckout = useCallback((tableId: number) => navigate({ view: 'checkout', tableId }), [navigate]);
   const startOrderForTable = useCallback(
@@ -201,7 +210,7 @@ export default function App() {
       <Header
         restaurantName={RESTAURANT_NAME}
         view={view}
-        onViewChange={setView}
+        onViewChange={goView}
         user={user}
         onLogout={() => void logout()}
       />
@@ -220,6 +229,7 @@ export default function App() {
             onOpenTableCheckout={openTableCheckout}
             onOpenOrderCheckout={openCheckout}
             onStartPackingOrder={startPackingOrder}
+            homeSignal={tablesHome}
           />
         ) : view === 'sales' ? (
           <SalesView onOpenOrder={openCheckout} />
@@ -314,7 +324,7 @@ export default function App() {
           </>
         )}
       </main>
-      <MobileNav view={view} role={user.role} onViewChange={setView} />
+      <MobileNav view={view} role={user.role} onViewChange={goView} />
     </div>
   );
 }
