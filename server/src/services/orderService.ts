@@ -208,7 +208,11 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
     tx.delete(bills).where(inArray(bills.id, billIds)).run();
   }
 
-  /** The unpaid order currently open on a table (the running session), if any. */
+  /**
+   * The unpaid order on a table that the kitchen has not started yet, if any: dishes added now are still in the same
+   * stage, so they join it. Once the kitchen has started an order, new dishes become their own ticket (same table,
+   * same bill) so they go through the kitchen on their own and the cooking order is never pulled back to "New".
+   */
   function findMergeTarget(tx: Pick<DB, 'select'>, tableId: number): OrderDTO | undefined {
     const rows = tx
       .select({ id: orders.id })
@@ -218,9 +222,18 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
       .all();
     for (const r of rows) {
       const o = findById(r.id);
-      if (o && o.paymentStatus === 'UNPAID') return o;
+      if (o && o.paymentStatus === 'UNPAID' && o.status === 'NEW') return o;
     }
     return undefined;
+  }
+
+  /** A new ticket on a table makes any bill already made for its unpaid tickets out of date: drop it, checkout makes a fresh one. */
+  function dropOpenTableBills(tx: Pick<DB, 'select' | 'delete'>, tableId: number) {
+    const rows = tx.select({ id: orders.id }).from(orders).where(and(eq(orders.tableId, tableId), ne(orders.status, 'CANCELLED'))).all();
+    for (const r of rows) {
+      const o = findById(r.id);
+      if (o && o.paymentStatus === 'UNPAID') dropOpenBills(tx, o.id);
+    }
   }
 
   /**
@@ -486,9 +499,9 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
           throw new AppError(400, 'TABLE_REQUIRED', 'Choose a table for a dine-in order');
         }
 
-        // A table that already has an unpaid order gets these items added to it (one order per table
-        // until it is cleared). If the kitchen already took the order it goes back to NEW, with the
-        // added lines marked so the kitchen only cooks what is new.
+        // A table whose unpaid order the kitchen has not started yet gets these items added to it (same stage, so
+        // together). If the kitchen has already started it, the new items become their own ticket on the same
+        // table and bill, and go through the kitchen on their own.
         const target = tableId !== null ? findMergeTarget(tx, tableId) : undefined;
         if (target) {
           dropOpenBills(tx, target.id);
@@ -524,6 +537,7 @@ export function createOrderService(db: DB, events: EventBus, now: () => Date = (
           tx.insert(mergedRequests).values({ clientRequestId: input.clientRequestId, orderId: target.id, createdAt }).run();
           return { orderId: target.id, merged: true };
         }
+        if (tableId !== null) dropOpenTableBills(tx, tableId);
 
         const order = tx
           .insert(orders)

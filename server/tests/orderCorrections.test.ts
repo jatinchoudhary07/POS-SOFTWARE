@@ -160,29 +160,65 @@ describe('more food ordered at a table that already has an order', () => {
     expect((await R.post('/api/orders').send({ clientRequestId: requestId(), orderType: 'TAKEAWAY', items: [{ menuItemId: roti, quantity: 1 }] }).expect(201)).body.merged).toBe(false);
   });
 
-  it('sends the order back to the kitchen as NEW, with only the added lines marked unsent', async () => {
+  it('puts dishes added while the kitchen is cooking on their own ticket, and leaves the cooking order alone', async () => {
     const { R, K, table, tikka, roti, send } = await tableSetup();
     const o = (await send(table.id, [{ menuItemId: tikka, quantity: 1 }]).expect(201)).body.order;
-    for (const status of ['PREPARING', 'READY']) await K.patch(`/api/orders/${o.id}/status`).send({ status }).expect(200);
-    const more = (await send(table.id, [{ menuItemId: tikka, quantity: 1 }, { menuItemId: roti, quantity: 1 }]).expect(201)).body.order;
-    expect(more.id).toBe(o.id);
-    expect(more.status).toBe('NEW');
-    // the cooked tikka is not mixed up with the new one
-    expect(more.items.map((i: any) => [i.itemName, i.quantity, i.sentToKitchen])).toEqual([['Paneer Tikka', 1, true], ['Paneer Tikka', 1, false], ['Tandoori Roti', 1, false]]);
-    const ticket = (await K.get('/api/kitchen/orders')).body.orders[0];
-    expect(ticket.items.map((i: any) => i.sent)).toEqual([true, false, false]);
-    expect(JSON.stringify(ticket)).not.toMatch(/Paise/);
     await K.patch(`/api/orders/${o.id}/status`).send({ status: 'PREPARING' }).expect(200);
-    expect((await K.get('/api/kitchen/orders')).body.orders[0].items.every((i: any) => i.sent)).toBe(true);
-    expect((await R.get(`/api/orders/${o.id}`)).body.order.subtotalPaise).toBe(51000);
+    const added = (await send(table.id, [{ menuItemId: tikka, quantity: 1 }, { menuItemId: roti, quantity: 1 }]).expect(201)).body;
+    expect(added.merged).toBe(false);
+    expect(added.order.id).not.toBe(o.id);
+    expect(added.order).toMatchObject({ status: 'NEW', tableId: table.id });
+    // the cooking order keeps its stage and its dishes
+    const cooking = (await R.get(`/api/orders/${o.id}`)).body.order;
+    expect(cooking.status).toBe('PREPARING');
+    expect(cooking.items.map((i: any) => [i.itemName, i.quantity])).toEqual([['Paneer Tikka', 1]]);
+    // the kitchen sees two tickets, one in each stage
+    const tickets = (await K.get('/api/kitchen/orders')).body.orders;
+    expect(tickets.map((t: any) => [t.id, t.status]).sort()).toEqual([[o.id, 'PREPARING'], [added.order.id, 'NEW']].sort());
+    expect(JSON.stringify(tickets)).not.toMatch(/Paise/);
+    // still one table, one bill: the table total covers both tickets
+    const detail = (await R.get(`/api/tables/${table.id}`)).body;
+    expect(detail.runningTotalPaise).toBe(24000 + 24000 + 3000);
+    expect(detail.orders).toHaveLength(2);
   });
 
-  it('also reopens an order that was already served but not paid yet (dessert after the meal)', async () => {
+  it('keeps adding to the new ticket while it is still NEW, then starts another once it is cooking', async () => {
+    const { K, table, tikka, roti, send } = await tableSetup();
+    const first = (await send(table.id, [{ menuItemId: tikka, quantity: 1 }]).expect(201)).body.order;
+    await K.patch(`/api/orders/${first.id}/status`).send({ status: 'PREPARING' }).expect(200);
+    const second = (await send(table.id, [{ menuItemId: roti, quantity: 1 }]).expect(201)).body.order;
+    const third = (await send(table.id, [{ menuItemId: roti, quantity: 1 }]).expect(201)).body;
+    expect(third.merged).toBe(true); // same stage as the second ticket: together
+    expect(third.order.id).toBe(second.id);
+    expect(third.order.items.map((i: any) => [i.itemName, i.quantity])).toEqual([['Tandoori Roti', 2]]);
+    await K.patch(`/api/orders/${second.id}/status`).send({ status: 'PREPARING' }).expect(200);
+    const fourth = (await send(table.id, [{ menuItemId: roti, quantity: 1 }]).expect(201)).body;
+    expect(fourth.merged).toBe(false);
+    expect([first.id, second.id]).not.toContain(fourth.order.id);
+  });
+
+  it('puts dessert after the meal on its own ticket when the first order was already served but not paid', async () => {
     const { ctx, table, roti, tikka, send } = await tableSetup();
     const o = (await send(table.id, [{ menuItemId: tikka, quantity: 1 }]).expect(201)).body.order;
     for (const status of ['PREPARING', 'READY', 'COMPLETED']) await ctx.api.patch(`/api/orders/${o.id}/status`).send({ status }).expect(200);
     const more = (await send(table.id, [{ menuItemId: roti, quantity: 1 }]).expect(201)).body.order;
-    expect(more).toMatchObject({ id: o.id, status: 'NEW' });
+    expect(more.id).not.toBe(o.id);
+    expect(more.status).toBe('NEW');
+    expect((await ctx.api.get(`/api/orders/${o.id}`)).body.order.status).toBe('COMPLETED'); // the served order stays served
+  });
+
+  it('one table bill covers every ticket, and a bill made earlier is redone when a ticket is added', async () => {
+    const { R, K, table, tikka, roti, send } = await tableSetup();
+    const o = (await send(table.id, [{ menuItemId: tikka, quantity: 1 }]).expect(201)).body.order;
+    await K.patch(`/api/orders/${o.id}/status`).send({ status: 'PREPARING' }).expect(200);
+    expect((await R.post(`/api/tables/${table.id}/bill`).send({}).expect(200)).body.bill.totalPaise).toBe(24000);
+    await send(table.id, [{ menuItemId: roti, quantity: 1 }]).expect(201);
+    const pay = await R.post(`/api/tables/${table.id}/payments`).send({ method: 'CASH', idempotencyKey: requestId(), expectedTotalPaise: 24000, tenderedPaise: 24000 });
+    expect(pay.status).toBe(409); // the old bill (first ticket only) is gone
+    const bill = (await R.post(`/api/tables/${table.id}/bill`).send({}).expect(200)).body.bill;
+    expect(bill.totalPaise).toBe(27000);
+    await R.post(`/api/tables/${table.id}/payments`).send({ method: 'CASH', idempotencyKey: requestId(), expectedTotalPaise: 27000, tenderedPaise: 27000 }).expect(201);
+    for (const id of [o.id]) expect((await R.get(`/api/orders/${id}`)).body.order.paymentStatus).toBe('PAID');
   });
 
   it('throws away an already-printed bill so the new total is charged', async () => {
