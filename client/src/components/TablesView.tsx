@@ -182,6 +182,12 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
     [orders],
   );
 
+  const packingSummary = useMemo(() => {
+    const count = (st: Order['status']) => packingOrders.filter((o) => o.status === st).length;
+    const dueUnpaid = packingOrders.filter((o) => o.paymentStatus !== 'PAID' && o.paymentStatus !== 'REFUNDED').reduce((n, o) => n + (o.billTotalPaise ?? o.subtotalPaise), 0);
+    return { sent: count('NEW'), preparing: count('PREPARING'), ready: count('READY'), dueUnpaid };
+  }, [packingOrders]);
+
   async function handOver(o: Order) {
     setHandingId(o.id);
     try {
@@ -428,7 +434,7 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
               <Loader2 size={24} className="animate-spin text-accent" />
               <span>Loading tables...</span>
             </div>
-          ) : filteredTiles.length === 0 ? (
+          ) : filteredTiles.length === 0 && filter !== 'ALL' ? (
             <div className="flex h-64 flex-col items-center justify-center rounded-card border border-dashed border-line p-8 text-center">
               <UtensilsCrossed size={36} className="text-ink-3" />
               <p className="mt-3 text-base font-semibold text-ink">No tables match your filter</p>
@@ -436,6 +442,46 @@ export function TablesView({ onStartOrderForTable, onOpenTableCheckout, onOpenOr
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 sm:gap-4 md:gap-5">
+              {filter === 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setFilter('PACKING')}
+                  aria-label={packingOrders.length > 0 ? `Packing: ${packingOrders.length} open orders. Tap to see them` : 'Packing: no open orders'}
+                  className={cx(
+                    'group flex min-h-[132px] flex-col justify-between rounded-2xl border p-2.5 text-left transition-all duration-300 select-none cursor-pointer hover:-translate-y-1 hover:shadow-xl sm:rounded-[24px] sm:p-5',
+                    packingOrders.length > 0 ? 'border-[#ff8548]/40 bg-orange-50/80 shadow-sm backdrop-blur-xl' : 'border-dashed border-slate-300 bg-white/50',
+                  )}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <span className={cx('flex h-7 w-7 items-center justify-center rounded-lg', packingOrders.length > 0 ? 'bg-[#ff8548] text-white' : 'bg-slate-100 text-slate-400')}>
+                        <Package size={14} aria-hidden />
+                      </span>
+                      <span className="text-sm font-extrabold text-slate-900">Packing</span>
+                    </span>
+                    {packingOrders.length > 0 && <span className="rounded-full bg-[#ff8548] px-2 py-0.5 text-[11px] font-bold text-white tabular-nums">{packingOrders.length}</span>}
+                  </span>
+                  {packingOrders.length > 0 ? (
+                    <span className="mt-2 flex flex-1 flex-col justify-end gap-1.5">
+                      <span className="flex flex-wrap gap-1">
+                        {packingSummary.sent > 0 && <span className="rounded-full border border-blue-300 bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-900">{packingSummary.sent} sent</span>}
+                        {packingSummary.preparing > 0 && <span className="rounded-full border border-orange-300 bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-900">{packingSummary.preparing} preparing</span>}
+                        {packingSummary.ready > 0 && <span className="rounded-full border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">{packingSummary.ready} ready</span>}
+                      </span>
+                      <span className="flex items-baseline justify-between gap-1">
+                        <span className="text-[11px] font-semibold text-slate-500">{packingSummary.dueUnpaid > 0 ? 'To collect' : 'All paid'}</span>
+                        {packingSummary.dueUnpaid > 0 && <span className="text-sm font-black tabular-nums text-slate-900">{formatPaise(packingSummary.dueUnpaid)}</span>}
+                      </span>
+                      <span className="text-[11px] font-bold text-[#ff8548] group-hover:underline">See all packing orders &rarr;</span>
+                    </span>
+                  ) : (
+                    <span className="mt-2 flex flex-1 flex-col justify-end">
+                      <span className="text-xs font-semibold text-slate-500">No packing orders</span>
+                      <span className="text-[11px] text-slate-400">They show here when placed</span>
+                    </span>
+                  )}
+                </button>
+              )}
               {filteredTiles.map((table) => {
                 const isBlank = table.tableStatus === 'BLANK' || (table.status === 'AVAILABLE' && table.tableStatus !== 'PAID');
                 const isPrinted = table.tableStatus === 'PRINTED';
