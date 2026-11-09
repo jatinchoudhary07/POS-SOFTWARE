@@ -146,6 +146,10 @@ export const api = {
     }),
 
   getSettings: () => request<{ settings: Settings }>('/settings').then((r) => r.settings),
+  /** The daily sales goal shared by every device (paise). Only the Superadmin can change it. */
+  getDailyGoal: () => request<{ dailyGoalPaise: number }>('/settings/daily-goal').then((r) => r.dailyGoalPaise),
+  setDailyGoal: (dailyGoalPaise: number) =>
+    request<{ dailyGoalPaise: number }>('/settings/daily-goal', { method: 'PUT', body: JSON.stringify({ dailyGoalPaise }) }).then((r) => r.dailyGoalPaise),
 
   saveSettings: (body: Omit<Settings, 'configured'>) =>
     request<{ settings: Settings }>('/settings', { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.settings),

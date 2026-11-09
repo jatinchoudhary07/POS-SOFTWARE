@@ -28,6 +28,8 @@ import type { OrderDTO } from './orderService';
 // DTOs
 // ---------------------------------------------------------------------------
 
+export const DEFAULT_DAILY_GOAL_PAISE = 500_000;
+
 export interface SettingsDTO {
   restaurantName: string;
   addressLine: string | null;
@@ -610,6 +612,26 @@ export function createBillingService(db: DB, events: EventBus, opts: BillingServ
         }
       });
       return readSettings();
+    },
+
+    /** The daily sales goal in paise (₹5,000 until the Superadmin changes it). */
+    getDailyGoal(): number {
+      return db.select({ g: restaurantSettings.dailyGoalPaise }).from(restaurantSettings).where(eq(restaurantSettings.id, 1)).get()?.g ?? DEFAULT_DAILY_GOAL_PAISE;
+    },
+
+    setDailyGoal(paise: number): number {
+      db.transaction((tx) => {
+        const exists = tx.select({ id: restaurantSettings.id }).from(restaurantSettings).where(eq(restaurantSettings.id, 1)).get();
+        if (exists) {
+          tx.update(restaurantSettings).set({ dailyGoalPaise: paise, updatedAt: now() }).where(eq(restaurantSettings.id, 1)).run();
+        } else {
+          // settings were never saved: create the row with the default restaurant name so nothing else changes
+          tx.insert(restaurantSettings)
+            .values({ id: 1, restaurantName: opts.defaultRestaurantName, dailyGoalPaise: paise, createdAt: now(), updatedAt: now() })
+            .run();
+        }
+      });
+      return paise;
     },
 
     checkout,

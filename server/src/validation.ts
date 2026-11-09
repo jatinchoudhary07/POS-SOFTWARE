@@ -305,6 +305,17 @@ export const updateSettingsSchema = z
   .strict();
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 
+/** The daily sales goal, in paise: at least Rs 1, at most Rs 1 crore. */
+export const dailyGoalSchema = z
+  .object({
+    dailyGoalPaise: z
+      .number({ error: 'Give the goal as a number' })
+      .int('The goal must be a whole number of paise')
+      .min(100, 'The goal must be at least ₹1')
+      .max(1_000_000_000, 'The goal is too large'),
+  })
+  .strict();
+
 export const reportDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')

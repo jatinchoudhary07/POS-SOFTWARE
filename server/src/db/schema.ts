@@ -191,6 +191,8 @@ export const restaurantSettings = sqliteTable(
     receiptFooter: text('receipt_footer'),
     // Round the bill total to the nearest rupee (shown as a "Round off" line).
     roundToRupee: integer('round_to_rupee', { mode: 'boolean' }).notNull().default(false),
+    // Sales target per day, shown on the Sales screen of every device. Only the Superadmin changes it.
+    dailyGoalPaise: integer('daily_goal_paise').notNull().default(500000),
     ...timestamps,
   },
   (t) => [check('restaurant_settings_single_row', sql`${t.id} = 1`)],

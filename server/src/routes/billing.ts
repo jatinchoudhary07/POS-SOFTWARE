@@ -9,6 +9,7 @@ import {
   refundPaymentSchema,
   reportDateSchema,
   resolvePaymentSchema,
+  dailyGoalSchema,
   updateSettingsSchema,
 } from '../validation';
 
@@ -65,6 +66,13 @@ export function settingsRouter(billing: BillingService): Router {
   });
   router.put('/', superadmin, (req, res) => {
     res.json({ settings: billing.updateSettings(updateSettingsSchema.parse(req.body)) });
+  });
+  // The daily sales goal: every signed-in staff device reads it, only the Superadmin changes it.
+  router.get('/daily-goal', staff, (_req, res) => {
+    res.json({ dailyGoalPaise: billing.getDailyGoal() });
+  });
+  router.put('/daily-goal', superadmin, (req, res) => {
+    res.json({ dailyGoalPaise: billing.setDailyGoal(dailyGoalSchema.parse(req.body).dailyGoalPaise) });
   });
   return router;
 }

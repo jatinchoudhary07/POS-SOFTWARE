@@ -132,6 +132,9 @@ const PEACH = [253, 186, 116];
 const tickColor = (f: number) => `rgb(${TEAL.map((c, i) => Math.round(c + (PEACH[i] - c) * f)).join(',')})`;
 
 /** Half-circle gauge drawn as plain tick lines; lit ticks fade teal to peach and a dark needle marks the value. */
+/** The last goal seen, so coming back to this screen shows it at once instead of a flash of the default. */
+let lastGoalPaise = 500000;
+
 function Gauge({ pct, goalLabel, children }: { pct: number; goalLabel: string; children: ReactNode }) {
   const TICKS = 44;
   const p = Math.max(0, Math.min(100, useCountUp(pct, 1200)));
@@ -185,15 +188,30 @@ export function PhoneSalesDashboard({ onOpenOrder }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
-  const [goalPaise, setGoalPaise] = useState(() => {
-    try {
-      const v = Number(localStorage.getItem('salesGoalPaise'));
-      return v > 0 ? v : 500000;
-    } catch {
-      return 500000;
-    }
-  });
+  // The goal lives on the server, so every device shows the same one. Only the Superadmin can change it.
+  const [goalPaise, setGoalPaise] = useState(lastGoalPaise);
   const [editGoal, setEditGoal] = useState(false);
+  const [savingGoal, setSavingGoal] = useState(false);
+  const loadGoal = useCallback(async () => {
+    try {
+      const g = await api.getDailyGoal();
+      lastGoalPaise = g;
+      setGoalPaise(g);
+    } catch {
+      /* keep the last known goal */
+    }
+  }, []);
+  useEffect(() => {
+    void loadGoal();
+    // pick up a change made on another device when this screen comes back into view
+    const onVisible = () => document.visibilityState === 'visible' && void loadGoal();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [loadGoal]);
 
   const isSingleDay = range.from === range.to;
   const isToday = isSingleDay && range.from === todayKey;
@@ -212,12 +230,13 @@ export function PhoneSalesDashboard({ onOpenOrder }: Props) {
         setDaily(await api.dailySummary(range.from));
       }
       setError(null);
+      void loadGoal();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load sales');
     } finally {
       setLoading(false);
     }
-  }, [isSuperadmin, range.from, range.to]);
+  }, [isSuperadmin, range.from, range.to, loadGoal]);
 
   useEffect(() => {
     void load();
@@ -448,29 +467,37 @@ export function PhoneSalesDashboard({ onOpenOrder }: Props) {
                   {editGoal ? (
                     <form
                       className="flex items-center gap-1.5"
-                      onSubmit={(e) => {
+                      onSubmit={async (e) => {
                         e.preventDefault();
                         const v = Number(new FormData(e.currentTarget).get('goal'));
-                        if (v > 0) {
-                          setGoalPaise(Math.round(v * 100));
-                          try {
-                            localStorage.setItem('salesGoalPaise', String(Math.round(v * 100)));
-                          } catch {
-                            /* private mode: goal just isn't remembered */
-                          }
+                        if (!(v > 0)) {
+                          setEditGoal(false);
+                          return;
                         }
-                        setEditGoal(false);
+                        setSavingGoal(true);
+                        try {
+                          const saved = await api.setDailyGoal(Math.round(v * 100));
+                          lastGoalPaise = saved;
+                          setGoalPaise(saved);
+                          setEditGoal(false);
+                        } catch (err) {
+                          setError(err instanceof ApiError ? err.message : 'Could not save the goal');
+                        } finally {
+                          setSavingGoal(false);
+                        }
                       }}
                     >
                       ₹
                       <input name="goal" type="number" min="1" step="1" autoFocus defaultValue={goalPaise / 100} aria-label="Daily sales goal in rupees" className="h-7 w-24 rounded-full bg-white px-3 text-xs font-bold text-slate-800 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-orange-400" />
                       /day
-                      <button type="submit" className="rounded-full bg-slate-900 px-2.5 py-1 font-bold text-white">Save</button>
+                      <button type="submit" disabled={savingGoal} className="rounded-full bg-slate-900 px-2.5 py-1 font-bold text-white disabled:opacity-60">{savingGoal ? 'Saving…' : 'Save'}</button>
                     </form>
-                  ) : (
+                  ) : isSuperadmin ? (
                     <button type="button" onClick={() => setEditGoal(true)} className="rounded-full px-2 py-1 font-semibold transition-colors hover:bg-white/80 hover:text-slate-800">
                       Daily goal {formatPaise(goalPaise).replace(/\.00$/, '')} · Edit
                     </button>
+                  ) : (
+                    <span className="px-2 py-1 font-semibold">Daily goal {formatPaise(goalPaise).replace(/\.00$/, '')}</span>
                   )}
                 </div>
 

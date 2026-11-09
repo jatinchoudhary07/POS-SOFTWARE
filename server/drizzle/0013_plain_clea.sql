@@ -1,0 +1,1 @@
+ALTER TABLE `restaurant_settings` ADD `daily_goal_paise` integer DEFAULT 500000 NOT NULL;
