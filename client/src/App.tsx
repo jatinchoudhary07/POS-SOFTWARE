@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { createPortal } from 'react-dom';
 import { api, ApiError } from './api/client';
 import type { MenuCategory, MenuItem, TableTileDTO } from './api/types';
+import { useAppUpdate } from './lib/useAppUpdate';
 import { useKeepWarm } from './lib/useKeepWarm';
 import { CartBar } from './components/CartBar';
 import { CategorySidebar } from './components/CategorySidebar';
@@ -49,6 +50,7 @@ function routeFromPath(path: string): Route {
 
 export default function App() {
   useKeepWarm();
+  useAppUpdate();
   const user = useUser();
   const { logout } = useAuth();
   const [requested, setRoute] = useState<Route>(() => routeFromPath(window.location.pathname));
