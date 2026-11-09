@@ -56,7 +56,7 @@ export function CreditPaymentForm({
 
   return (
     <form
-      className="animate-fade space-y-4"
+      className="animate-fade space-y-2.5 lg:space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         setTried(true);
@@ -73,7 +73,7 @@ export function CreditPaymentForm({
           onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
           placeholder="10-digit mobile number"
           aria-invalid={tried && phoneBad}
-          className={cx(inputClass, 'h-11 tabular-nums', tried && phoneBad && 'border-rose-400')}
+          className={cx(inputClass, 'h-11 tabular-nums max-lg:h-10', tried && phoneBad && 'border-rose-400')}
         />
         {tried && phoneBad && <span className="mt-1 block text-xs font-medium text-rose-500">Please enter a valid 10-digit mobile number</span>}
       </label>
@@ -87,7 +87,7 @@ export function CreditPaymentForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="Name"
           aria-invalid={tried && nameBad}
-          className={cx(inputClass, 'h-11', tried && nameBad && 'border-rose-400')}
+          className={cx(inputClass, 'h-11 max-lg:h-10', tried && nameBad && 'border-rose-400')}
         />
         {tried && nameBad && <span className="mt-1 block text-xs font-medium text-rose-500">Please enter the customer's name</span>}
       </label>
@@ -112,7 +112,7 @@ export function CreditPaymentForm({
         </p>
       )}
 
-      <Button type="submit" size="lg" variant="primary" icon={HandCoins} loading={busy} disabled={busy} className="w-full">
+      <Button type="submit" size="lg" variant="primary" icon={HandCoins} loading={busy} disabled={busy} className="w-full max-lg:h-12">
         Put on credit · {formatPaise(total)}
       </Button>
     </form>

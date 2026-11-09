@@ -44,8 +44,8 @@ const card = 'rounded-card bg-surface shadow-card';
 function Row({ label, value, strong, muted }: { label: React.ReactNode; value: string; strong?: boolean; muted?: boolean }) {
   return (
     <div className={cx('flex items-baseline justify-between gap-4', strong ? 'text-ink' : muted ? 'text-ink-2' : 'text-ink')}>
-      <span className={cx(strong ? 'text-lg font-semibold' : 'text-[15px]')}>{label}</span>
-      <span className={cx('tabular-nums', strong ? 'text-[28px] font-semibold tracking-tight' : 'text-[15px] font-medium')}>
+      <span className={cx(strong ? 'text-base font-semibold lg:text-lg' : 'text-sm lg:text-[15px]')}>{label}</span>
+      <span className={cx('tabular-nums', strong ? 'text-2xl font-semibold tracking-tight lg:text-[28px]' : 'text-sm font-medium lg:text-[15px]')}>
         {strong ? <AnimatedValue value={value} /> : value}
       </span>
     </div>
@@ -78,14 +78,14 @@ function DiscountEditor({ bill, disabled, onApply }: { bill: Bill; disabled: boo
 
   if (bill.discount.type !== 'NONE') {
     return (
-      <Button size="sm" variant="plain" icon={X} disabled={disabled} onClick={() => void onApply({ type: 'NONE' })}>
+      <Button size="sm" variant="plain" icon={X} disabled={disabled} onClick={() => void onApply({ type: 'NONE' })} className="max-lg:h-7">
         Remove discount
       </Button>
     );
   }
   if (!open) {
     return (
-      <Button size="sm" variant="plain" icon={Tag} disabled={disabled} onClick={() => setOpen(true)}>
+      <Button size="sm" variant="plain" icon={Tag} disabled={disabled} onClick={() => setOpen(true)} className="max-lg:h-7">
         Add discount
       </Button>
     );
@@ -132,27 +132,32 @@ function DiscountEditor({ bill, disabled, onApply }: { bill: Bill; disabled: boo
   );
 }
 
-function BillCard({ checkout, editable, onDiscount }: { checkout: Checkout; editable: boolean; onDiscount: (d: DiscountRequest) => Promise<boolean> }) {
+function BillCard({ checkout, editable, onDiscount, collapseItems }: { checkout: Checkout; editable: boolean; onDiscount: (d: DiscountRequest) => Promise<boolean>; collapseItems?: boolean }) {
   const { order, bill } = checkout;
   return (
-    <section aria-label="Bill" className={cx(card, 'flex flex-col p-5 lg:p-6')}>
-      <h2 className="text-[15px] font-semibold text-ink-2">Bill</h2>
-      <ul className="mt-3 space-y-2.5">
+    <section aria-label="Bill" className={cx(card, 'flex flex-col p-3 lg:p-6')}>
+      <h2 className="text-[15px] font-semibold text-ink-2 max-lg:sr-only">Bill</h2>
+      {/* On a phone the items share one line each and scroll inside their own small box if there are many, so the
+          totals and the payment always stay on screen. */}
+      <ul className={cx('space-y-1 max-lg:max-h-[21dvh] max-lg:overflow-y-auto lg:mt-3 lg:space-y-2.5', collapseItems && 'max-lg:hidden')}>
         {order.items.map((i) => (
-          <li key={i.id} className="flex items-baseline justify-between gap-4">
-            <span className="min-w-0">
-              <span className="font-medium">{i.itemName}</span>
-              <span className="block text-sm text-ink-2 tabular-nums">
+          <li key={i.id} className="flex items-baseline justify-between gap-2 lg:gap-4">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium lg:overflow-visible lg:whitespace-normal lg:text-base" title={i.itemName}>
+                <span className="tabular-nums text-ink-2 lg:hidden">{i.quantity}× </span>
+                {i.itemName}
+              </span>
+              <span className="hidden text-sm text-ink-2 tabular-nums lg:block">
                 {i.quantity} × {formatPaise(i.unitPricePaise)}
               </span>
             </span>
-            <span className="font-medium tabular-nums">{formatPaise(i.lineTotalPaise)}</span>
+            <span className="text-xs font-medium tabular-nums lg:text-base">{formatPaise(i.lineTotalPaise)}</span>
           </li>
         ))}
       </ul>
 
       {bill ? (
-        <div className="mt-5 space-y-2 border-t border-line pt-4">
+        <div className={cx('space-y-1 pt-2 lg:mt-5 lg:space-y-2 lg:border-t lg:border-line lg:pt-4', collapseItems ? 'mt-0' : 'mt-2 border-t border-line')}>
           <Row label="Subtotal" value={formatPaise(bill.subtotalPaise)} />
           {bill.discount.paise > 0 && (
             <Row
@@ -169,11 +174,11 @@ function BillCard({ checkout, editable, onDiscount }: { checkout: Checkout; edit
           {bill.taxLines.map((t) => (
             <Row key={t.name} muted label={`${t.name} ${formatBps(t.rateBps)}`} value={formatPaise(t.amountPaise)} />
           ))}
-          {bill.taxLines.length === 0 && <p className="text-sm text-ink-2">No tax lines configured (see Settings).</p>}
+          {bill.taxLines.length === 0 && <p className="text-xs text-ink-2 lg:text-sm">No tax lines configured (see Settings).</p>}
           {bill.roundOffPaise !== 0 && (
             <Row muted label="Round off" value={`${bill.roundOffPaise > 0 ? '+' : '−'}${formatPaise(Math.abs(bill.roundOffPaise))}`} />
           )}
-          <div className="border-t border-line pt-3">
+          <div className="border-t border-line pt-1.5 lg:pt-3">
             <Row strong label="Total" value={formatPaise(bill.totalPaise)} />
           </div>
           {editable && (
@@ -320,23 +325,23 @@ function PaidPanel({ checkout, onUpdate, onBack }: { checkout: Checkout; onUpdat
     <div className="flex animate-enter flex-col items-center text-center">
       <span
         className={cx(
-          'flex h-14 w-14 items-center justify-center rounded-full',
+          'flex h-14 w-14 items-center justify-center rounded-full max-lg:h-10 max-lg:w-10',
           refunded ? 'bg-fill text-ink-2' : 'bg-success-tint text-success',
         )}
       >
         {refunded ? <RotateCcw size={26} aria-hidden /> : <CircleCheck size={28} aria-hidden />}
       </span>
-      <h3 className="mt-3 text-xl font-semibold tracking-tight">{refunded ? 'Refunded' : onCredit ? 'On credit' : 'Paid'}</h3>
+      <h3 className="mt-1.5 text-lg font-semibold tracking-tight lg:mt-3 lg:text-xl">{refunded ? 'Refunded' : onCredit ? 'On credit' : 'Paid'}</h3>
       <p className="mt-1 text-ink-2">
         {formatPaise(settled.amountPaise)} · {METHOD_LABELS[settled.method]}
       </p>
       {settled.changePaise !== null && settled.changePaise > 0 && !refunded && (
-        <p className="mt-4 w-full rounded-control bg-success-tint px-4 py-3 text-success">
+        <p className="mt-2.5 w-full rounded-control bg-success-tint px-3 py-1.5 text-success lg:mt-4 lg:px-4 lg:py-3">
           <span className="block text-sm font-medium">Give change</span>
-          <span className="text-[28px] font-semibold tabular-nums">{formatPaise(settled.changePaise)}</span>
+          <span className="text-2xl font-semibold tabular-nums lg:text-[28px]">{formatPaise(settled.changePaise)}</span>
         </p>
       )}
-      <dl className="mt-4 w-full space-y-1 text-sm">
+      <dl className="mt-2.5 hidden w-full space-y-0.5 text-xs lg:mt-4 lg:block lg:space-y-1 lg:text-sm">
         {settled.tenderedPaise !== null && (
           <div className="flex justify-between">
             <dt className="text-ink-2">Cash received</dt>
@@ -348,13 +353,13 @@ function PaidPanel({ checkout, onUpdate, onBack }: { checkout: Checkout; onUpdat
           <dd className="font-medium">{settled.reference}</dd>
         </div>
         {settled.providerReference && (
-          <div className="flex justify-between">
+          <div className="flex justify-between max-lg:hidden">
             <dt className="text-ink-2">UPI ref</dt>
             <dd>{settled.providerReference}</dd>
           </div>
         )}
         {settled.completedAt && (
-          <div className="flex justify-between">
+          <div className="flex justify-between max-lg:hidden">
             <dt className="text-ink-2">Time</dt>
             <dd className="tabular-nums">{formatClock(settled.completedAt)}</dd>
           </div>
@@ -368,9 +373,9 @@ function PaidPanel({ checkout, onUpdate, onBack }: { checkout: Checkout; onUpdat
       </dl>
 
       {!refunded && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
-        <div className="mt-5 w-full">
+        <div className="mt-3 w-full lg:mt-5">
           {order.status === 'READY' ? (
-            <Button size="lg" variant="success" icon={CircleCheck} loading={completing} disabled={completing} onClick={() => void complete()} className="w-full">
+            <Button size="lg" variant="success" icon={CircleCheck} loading={completing} disabled={completing} onClick={() => void complete()} className="w-full max-lg:h-12">
               {dineIn ? 'Mark served' : 'Hand over to customer'}
             </Button>
           ) : (
@@ -381,20 +386,24 @@ function PaidPanel({ checkout, onUpdate, onBack }: { checkout: Checkout; onUpdat
         </div>
       )}
 
-      <div className="mt-5 w-full space-y-2">
-        <SegmentedControl
-          label="Receipt paper"
-          value={format}
-          onChange={setFormat}
-          segments={[
-            { value: 'compact', label: '80 mm roll' },
-            { value: 'a4', label: 'A4' },
-          ]}
-        />
-        <Button size="lg" variant="primary" icon={Printer} loading={printing} onClick={() => void print(checkout.order.id)} className="w-full">
-          Print receipt
-        </Button>
-        <Button size="lg" variant="secondary" icon={ArrowLeft} onClick={onBack} className="w-full">
+      <div className="mt-3 w-full space-y-1.5 lg:mt-5 lg:space-y-2">
+        <div className="flex items-center gap-2 max-lg:flex-row lg:block lg:space-y-2">
+          <SegmentedControl
+            label="Receipt paper"
+            value={format}
+            onChange={setFormat}
+            className="max-lg:w-44 max-lg:shrink-0"
+            segments={[
+              { value: 'compact', label: '80 mm roll' },
+              { value: 'a4', label: 'A4' },
+            ]}
+          />
+          <Button size="lg" variant="primary" icon={Printer} loading={printing} onClick={() => void print(checkout.order.id)} className="w-full max-lg:h-12 max-lg:flex-1">
+            Print receipt
+          </Button>
+        </div>
+        {/* the arrow at the top already goes back, so this button is only for larger screens */}
+        <Button size="lg" variant="secondary" icon={ArrowLeft} onClick={onBack} className="w-full max-lg:hidden">
           Back to orders
         </Button>
       </div>
@@ -446,6 +455,8 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
   // the button again can never record the payment twice; it changes after a definite answer.
   const keyRef = useRef(newRequestId());
   const busyRef = useRef(false);
+  // On a phone, focusing the cash box at once would pop the keyboard over the screen; the quick amounts cover most sales.
+  const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 
   useEffect(() => setVerified(false), [total, method]);
 
@@ -485,10 +496,11 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2.5 lg:space-y-5">
       <SegmentedControl
         label="Payment method"
         size="lg"
+        className="max-lg:[&_button]:h-9 max-lg:[&_button]:text-sm"
         value={method}
         onChange={setMethod}
         segments={[
@@ -519,7 +531,7 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
       ) : method === 'CASH' ? (
         <form
           key="cash"
-          className="animate-fade space-y-4"
+          className="animate-fade space-y-2 lg:space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (tendered !== null && tendered >= total) {
@@ -528,23 +540,23 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
           }}
         >
           <label className="block">
-            <span className={labelClass}>Cash received</span>
+            <span className={cx(labelClass, 'max-lg:sr-only')}>Cash received</span>
             <span className="relative block">
               <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-xl font-semibold text-ink-3">₹</span>
               <input
-                autoFocus
+                autoFocus={isDesktop}
                 inputMode="decimal"
                 value={cash}
                 onChange={(e) => setCash(e.target.value)}
                 placeholder="0.00"
                 aria-invalid={cash !== '' && tendered === null}
-                className={cx(inputClass, 'h-14 pl-9 text-2xl font-semibold tabular-nums')}
+                className={cx(inputClass, 'h-14 pl-9 text-2xl font-semibold tabular-nums max-lg:h-11 max-lg:text-xl')}
               />
             </span>
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 lg:gap-2">
             {[total, ...quickCashAmounts(total)].map((v, i) => (
-              <Button key={v} size="sm" variant="secondary" onClick={() => setCash((v / 100).toFixed(2))}>
+              <Button key={v} size="sm" variant="secondary" onClick={() => setCash((v / 100).toFixed(2))} className="max-lg:h-8 max-lg:px-2.5 max-lg:text-xs">
                 {i === 0 ? `Exact ${formatPaise(v)}` : formatPaise(v)}
               </Button>
             ))}
@@ -553,12 +565,12 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
           <div
             aria-live="polite"
             className={cx(
-              'flex items-baseline justify-between rounded-control px-4 py-3',
+              'flex items-baseline justify-between rounded-control px-3 py-1.5 lg:px-4 lg:py-3',
               short > 0 ? 'bg-danger-tint text-danger' : change !== null ? 'bg-success-tint text-success' : 'bg-fill text-ink-2',
             )}
           >
             <span className="font-medium">{short > 0 ? 'Short by' : 'Change due'}</span>
-            <span className="text-[26px] font-semibold tabular-nums">
+            <span className="text-xl font-semibold tabular-nums lg:text-[26px]">
               <AnimatedValue value={short > 0 ? `s${short}` : `c${change ?? 0}`}>{formatPaise(short > 0 ? short : (change ?? 0))}</AnimatedValue>
             </span>
           </div>
@@ -571,28 +583,31 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
             icon={Banknote}
             loading={busy === 'pay'}
             disabled={tendered === null || tendered < total || !!busy}
-            className="w-full"
+            className="w-full max-lg:h-12"
           >
             Confirm cash payment · {formatPaise(total)}
           </Button>
         </form>
       ) : (
-        <div key="upi" className="animate-fade space-y-4">
-          <div className="flex gap-3 rounded-control bg-accent-tint p-4 text-sm text-accent-hover">
-            <ShieldCheck size={20} className="mt-0.5 shrink-0" aria-hidden />
+        <div key="upi" className="animate-fade space-y-2.5 lg:space-y-4">
+          <div className="flex gap-3 rounded-control bg-accent-tint p-3 text-xs text-accent-hover lg:p-4 lg:text-sm">
+            <ShieldCheck size={20} className="mt-0.5 shrink-0 max-lg:hidden" aria-hidden />
             <div>
               <p className="font-semibold">Manual verification</p>
-              <p className="mt-1">
+              <p className="mt-1 lg:hidden">
+                Check <strong>{formatPaise(total)}</strong> is in your merchant app or bank first. A customer's screen is not proof.
+              </p>
+              <p className="mt-1 hidden lg:block">
                 Check that <strong>{formatPaise(total)}</strong> from this customer appears in your merchant app or bank before recording it. A
                 QR code, a payment request or the customer's screen is not proof of payment. This app does not check UPI automatically.
               </p>
             </div>
           </div>
           <label className="block">
-            <span className={labelClass}>UPI reference / UTR (optional)</span>
-            <input value={upiRef} maxLength={64} onChange={(e) => setUpiRef(e.target.value)} className={cx(inputClass, 'h-11')} />
+            <span className={cx(labelClass, 'max-lg:sr-only')}>UPI reference / UTR (optional)</span>
+            <input value={upiRef} maxLength={64} onChange={(e) => setUpiRef(e.target.value)} placeholder="UPI reference / UTR (optional)" className={cx(inputClass, 'h-11 max-lg:h-10')} />
           </label>
-          <label className="flex items-start gap-3 rounded-control bg-subtle p-3 text-[15px]">
+          <label className="flex items-start gap-3 rounded-control bg-subtle p-2.5 text-sm lg:p-3 lg:text-[15px]">
             <input
               type="checkbox"
               checked={verified}
@@ -609,7 +624,7 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
             icon={Smartphone}
             loading={busy === 'pay'}
             disabled={!verified || !!busy}
-            className="w-full"
+            className="w-full max-lg:h-12"
             onClick={() =>
               void submit(
                 {
@@ -751,33 +766,33 @@ export function CheckoutView({ orderId, onBack }: { orderId: number; onBack: () 
 
   return (
     <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-3 lg:px-6 lg:pt-5">
-        <IconButton icon={ArrowLeft} aria-label="Back to orders" onClick={onBack} />
+      <div className="flex flex-wrap items-center gap-2 px-3 pt-2 pb-1.5 lg:gap-3 lg:px-6 lg:pt-5 lg:pb-3">
+        <IconButton icon={ArrowLeft} aria-label="Back to orders" onClick={onBack} className="max-lg:h-9 max-lg:w-9" />
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight tabular-nums">Checkout · #{order.orderNumber}</h2>
-          <p className="text-sm text-ink-2">
+          <h2 className="text-base font-semibold tracking-tight tabular-nums lg:text-xl">Checkout · #{order.orderNumber}</h2>
+          <p className="text-xs text-ink-2 lg:text-sm">
             {order.orderType === 'DINE_IN' ? 'Dine-in' : 'Takeaway'}
             {order.tableNumber ? ` · Table ${order.tableNumber}` : ''} · {formatClock(order.createdAt)}
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-1.5 lg:gap-2">
           <span className="sr-only">Kitchen status:</span>
           <StatusBadge status={order.status} />
           <span className="sr-only">Payment status:</span>
           <PaymentBadge status={order.paymentStatus} method={order.paymentMethod} />
           {data.bill && !settled && (
-            <Button size="sm" variant="secondary" icon={Printer} loading={printing} onClick={() => void print(order.id)}>
-              Print bill
+            <Button size="sm" variant="secondary" icon={Printer} loading={printing} onClick={() => void print(order.id)} className="max-lg:h-8 max-lg:w-8 max-lg:px-0" aria-label="Print bill">
+              <span className="max-lg:sr-only">Print bill</span>
             </Button>
           )}
         </div>
       </div>
 
-      <div className="grid gap-4 px-4 pb-24 lg:pb-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
-        <BillCard checkout={data} editable={editable && can.manageDiscounts(role)} onDiscount={applyDiscount} />
+      <div className="grid gap-2.5 px-3 pb-24 lg:gap-4 lg:pb-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
+        <BillCard checkout={data} editable={editable && can.manageDiscounts(role)} onDiscount={applyDiscount} collapseItems={settled} />
 
-        <section aria-label="Payment" className={cx(card, 'p-5 lg:p-6')}>
-          <h2 className="mb-4 text-[15px] font-semibold text-ink-2">Payment</h2>
+        <section aria-label="Payment" className={cx(card, 'p-3 lg:p-6')}>
+          <h2 className="mb-4 text-[15px] font-semibold text-ink-2 max-lg:sr-only">Payment</h2>
           {settled ? (
             <PaidPanel checkout={data} onUpdate={setData} onBack={onBack} />
           ) : uncertain ? (
@@ -788,7 +803,7 @@ export function CheckoutView({ orderId, onBack }: { orderId: number; onBack: () 
         </section>
 
         {data.payments.length > 0 && (
-          <section aria-label="Payment attempts" className={cx(card, 'p-5 lg:col-span-2')}>
+          <section aria-label="Payment attempts" className={cx(card, 'p-3 lg:col-span-2 lg:p-5', settled && data.payments.length === 1 && 'max-lg:hidden')}>
             <h2 className="mb-2 text-[15px] font-semibold text-ink-2">Payment attempts</h2>
             <ul className="divide-y divide-line text-sm">
               {data.payments.map((p) => (
