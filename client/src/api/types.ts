@@ -195,7 +195,37 @@ export type PaymentRequest =
       failureReason?: string;
     }
   // The bill goes on the customer's account (pay later)
-  | { method: 'CREDIT'; idempotencyKey: string; expectedTotalPaise: number; customerName: string; customerPhone: string };
+  | { method: 'CREDIT'; idempotencyKey: string; expectedTotalPaise: number; customerName: string; customerPhone: string }
+  // Card/UPI on the Paytm terminal. The customer pays on the terminal; the outcome arrives by status checks.
+  | { method: 'TERMINAL'; idempotencyKey: string; expectedTotalPaise: number };
+
+/** Whether the card/UPI terminal is available (never contains a secret). */
+export interface PaymentsConfig {
+  terminal: { enabled: boolean; mode?: 'mock' | 'live'; label?: string; /** practice terminal: no real money moves */ practice?: boolean };
+}
+
+/** Where a terminal payment stands. */
+export interface TerminalAttempt {
+  paymentId: number;
+  paymentStatus: PaymentStatus;
+  state: 'CREATED' | 'SENDING' | 'ACCEPTED' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
+  provider: string;
+  amountPaise: number;
+  message: string;
+  startedAt: string;
+  deadlineAt: string;
+  pollCount: number;
+  lastCheckedAt: string | null;
+  needsReview: boolean;
+  reviewNote: string | null;
+  voidState: string | null;
+  voidMessage: string | null;
+  mock: boolean;
+}
+
+export type MockScenarioName =
+  | 'SUCCESS' | 'CUSTOMER_CANCEL' | 'BANK_REJECT' | 'TERMINAL_OFFLINE' | 'SALE_TIMEOUT' | 'ACCEPTED_NO_RESULT'
+  | 'DUPLICATE_ID' | 'TERMINAL_BUSY' | 'INVALID_CHECKSUM' | 'MISMATCH_AMOUNT' | 'MISMATCH_MID' | 'MISMATCH_TID';
 
 export interface Settings {
   restaurantName: string;

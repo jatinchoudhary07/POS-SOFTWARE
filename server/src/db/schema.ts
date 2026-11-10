@@ -532,3 +532,96 @@ export const pushSubscriptions = sqliteTable(
   },
   (t) => [uniqueIndex('push_subscriptions_endpoint_unique').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
 );
+
+// ---------------------------------------------------------------------------
+// Card/UPI terminal payments (Paytm). Stage 1 runs against a built-in MOCK terminal only.
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a terminal payment is in its life:
+ *   CREATED    saved, nothing sent to the terminal yet
+ *   SENDING    the Sale request was (or may have been) sent and has not been acknowledged: outcome unclear, so we ask for status
+ *   ACCEPTED   the terminal service accepted the request; waiting for the customer to pay. NOT a payment.
+ *   SUCCEEDED  the Status Enquiry confirmed the money (and the amount and ids matched): the only state that pays the bill
+ *   FAILED     definitely no money taken
+ *   UNKNOWN    outcome unclear after the waiting time: a person must check; never retried automatically
+ */
+export const PAYTM_ATTEMPT_STATES = ['CREATED', 'SENDING', 'ACCEPTED', 'SUCCEEDED', 'FAILED', 'UNKNOWN'] as const;
+export type PaytmAttemptState = (typeof PAYTM_ATTEMPT_STATES)[number];
+export const PAYTM_OPEN_STATES = ['CREATED', 'SENDING', 'ACCEPTED'] as const;
+export const PAYTM_VOID_STATES = ['REQUESTED', 'VOIDED', 'FAILED', 'UNKNOWN'] as const;
+export type PaytmVoidState = (typeof PAYTM_VOID_STATES)[number];
+
+/** One row per terminal payment attempt; links 1:1 to a `payments` row, which stays the source of truth for the bill. */
+export const paytmAttempts = sqliteTable(
+  'paytm_attempts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    paymentId: integer('payment_id')
+      .notNull()
+      .references(() => payments.id, { onDelete: 'restrict' }),
+    // Sent to the terminal service as merchantTransactionId: alphanumeric, 8-32 characters, never reused.
+    merchantTransactionId: text('merchant_transaction_id').notNull(),
+    // 'PAYTM_MOCK' in Stage 1.
+    provider: text('provider').notNull(),
+    mid: text('mid').notNull(),
+    tid: text('tid').notNull(),
+    amountPaise: integer('amount_paise').notNull(),
+    state: text('state', { enum: PAYTM_ATTEMPT_STATES }).notNull().default('CREATED'),
+    // Set just before the Sale request goes out. Empty after a crash = it was never sent, so it is safe to fail.
+    saleSentAt: integer('sale_sent_at', { mode: 'timestamp_ms' }),
+    acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
+    lastResultStatus: text('last_result_status'),
+    lastResultCode: text('last_result_code'),
+    lastResultMessage: text('last_result_message'),
+    // Details from the confirmed status (no card numbers are stored).
+    acquirementId: text('acquirement_id'),
+    rrn: text('rrn'),
+    payMethod: text('pay_method'),
+    pollCount: integer('poll_count').notNull().default(0),
+    statusErrorCount: integer('status_error_count').notNull().default(0),
+    lastPolledAt: integer('last_polled_at', { mode: 'timestamp_ms' }),
+    nextPollAt: integer('next_poll_at', { mode: 'timestamp_ms' }),
+    // After this a still-unfinished attempt becomes UNKNOWN.
+    deadlineAt: integer('deadline_at', { mode: 'timestamp_ms' }).notNull(),
+    // Something did not add up (amount/ids differ, money arrived after a hand-resolved failure): the Superadmin must look.
+    needsReview: integer('needs_review', { mode: 'boolean' }).notNull().default(false),
+    reviewNote: text('review_note'),
+    // Same-day void of a successful payment.
+    voidState: text('void_state', { enum: PAYTM_VOID_STATES }),
+    voidRequestedAt: integer('void_requested_at', { mode: 'timestamp_ms' }),
+    voidMessage: text('void_message'),
+    finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('paytm_attempts_payment_unique').on(t.paymentId),
+    uniqueIndex('paytm_attempts_txn_unique').on(t.merchantTransactionId),
+    // One unfinished payment per terminal at a time (the terminal service refuses a second one anyway).
+    uniqueIndex('paytm_one_open_per_terminal').on(t.tid).where(sql`state IN ('CREATED', 'SENDING', 'ACCEPTED')`),
+    index('paytm_attempts_poll_idx').on(t.state, t.nextPollAt),
+    check('paytm_attempts_state_valid', sql`${t.state} IN ('CREATED', 'SENDING', 'ACCEPTED', 'SUCCEEDED', 'FAILED', 'UNKNOWN')`),
+    check('paytm_attempts_void_state_valid', sql`${t.voidState} IS NULL OR ${t.voidState} IN ('REQUESTED', 'VOIDED', 'FAILED', 'UNKNOWN')`),
+    check('paytm_attempts_amount_positive', sql`${t.amountPaise} > 0`),
+  ],
+);
+
+/** Append-only log of everything exchanged with the terminal service (never the signature or any key). */
+export const paytmEvents = sqliteTable(
+  'paytm_events',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    attemptId: integer('attempt_id')
+      .notNull()
+      .references(() => paytmAttempts.id, { onDelete: 'restrict' }),
+    // SALE, STATUS, VOID, VOID_STATUS, SETTLED, FAILED, UNKNOWN, ANOMALY, RECOVERY, MANUAL
+    kind: text('kind').notNull(),
+    request: text('request', { mode: 'json' }),
+    response: text('response', { mode: 'json' }),
+    note: text('note'),
+    at: integer('at', { mode: 'timestamp_ms' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index('paytm_events_attempt_idx').on(t.attemptId)],
+);

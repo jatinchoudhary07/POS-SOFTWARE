@@ -316,6 +316,14 @@ export const dailyGoalSchema = z
   })
   .strict();
 
+/** Practice mode only: what the pretend terminal does next. */
+export const mockScenarioSchema = z
+  .object({
+    scenario: z.enum(['SUCCESS', 'CUSTOMER_CANCEL', 'BANK_REJECT', 'TERMINAL_OFFLINE', 'SALE_TIMEOUT', 'ACCEPTED_NO_RESULT', 'DUPLICATE_ID', 'TERMINAL_BUSY', 'INVALID_CHECKSUM', 'MISMATCH_AMOUNT', 'MISMATCH_MID', 'MISMATCH_TID']),
+    afterPolls: z.number().int().min(0).max(30).optional(),
+  })
+  .strict();
+
 export const reportDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')

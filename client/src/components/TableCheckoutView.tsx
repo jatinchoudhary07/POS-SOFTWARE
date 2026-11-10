@@ -4,6 +4,7 @@ import {
   CheckCheck,
   CircleAlert,
   CircleCheck,
+  CreditCard,
   HandCoins,
   Loader2,
   Printer,
@@ -22,7 +23,9 @@ import { formatClock } from '../lib/time';
 import { useUser } from '../state/Auth';
 import { useLiveOrders } from '../state/LiveOrders';
 import { can } from '../state/permissions';
+import { ResolveForm } from './CheckoutView';
 import { CreditPaymentForm } from './CreditPaymentForm';
+import { isTerminalPayment, TerminalStartPanel, TerminalWaitingPanel, useTerminalConfig } from './PaytmTerminal';
 import { useReceiptPrinter } from './ReceiptPrinter';
 import { AnimatedValue } from './ui/AnimatedValue';
 import { Button, IconButton } from './ui/Button';
@@ -153,7 +156,8 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
   const [clearing, setClearing] = useState(false);
 
   // Payment tab and form state
-  const [method, setMethod] = useState<'CASH' | 'UPI_MANUAL' | 'CREDIT'>('CASH');
+  const terminal = useTerminalConfig();
+  const [method, setMethod] = useState<'CASH' | 'UPI_MANUAL' | 'CREDIT' | 'TERMINAL'>('CASH');
   const [cash, setCash] = useState<string>('');
   const [upiRef, setUpiRef] = useState('');
   const [verified, setVerified] = useState(false);
@@ -167,7 +171,9 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
       let c = await api.getTableCheckout(tableId);
       // Auto-generate or sync open bill
       const hasUnpaid = c.orders.some((o) => o.paymentStatus !== 'PAID');
-      if (hasUnpaid && (!c.bill || c.bill.status === 'OPEN')) {
+      // While a payment is waiting on the terminal (or is unsure) the bill is frozen: regenerating it is refused by the server.
+      const paymentOpen = c.payments.some((p) => p.status === 'PENDING' || p.status === 'UNKNOWN');
+      if (hasUnpaid && !paymentOpen && (!c.bill || c.bill.status === 'OPEN')) {
         const d = c.bill?.discount;
         const discount: DiscountRequest =
           d && d.type === 'PERCENT'
@@ -215,6 +221,12 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
     try {
       const res = await api.recordTablePayment(tableId, input);
       setData(res.checkout);
+      keyRef.current = newRequestId();
+      if (input.method === 'TERMINAL' && res.payment.status !== 'SUCCEEDED') {
+        if (res.payment.status === 'FAILED') toast({ tone: 'error', title: 'Terminal payment did not go through', description: res.payment.failureReason ?? 'The bill is still unpaid.' });
+        else toast({ tone: 'success', title: 'Sent to the terminal', description: 'Waiting for the customer to pay.' });
+        return;
+      }
       toast({
         tone: 'success',
         title: input.method === 'CREDIT' ? 'Put on credit' : 'Payment recorded',
@@ -262,6 +274,7 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
   const change = tendered !== null && tendered >= total ? tendered - total : null;
   const short = tendered !== null && tendered < total ? total - tendered : 0;
   const settledPayment = payments.find((p) => p.status === 'SUCCEEDED');
+  const openPayment = payments.find((p) => p.status === 'PENDING' || p.status === 'UNKNOWN');
 
   return (
     <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-y-auto overflow-x-hidden">
@@ -482,6 +495,22 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
                   </Button>
                 </div>
               </div>
+            ) : openPayment && isTerminalPayment(openPayment) ? (
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-ink">Payment on the terminal</h3>
+                  <p className="text-xs text-ink-2">The bill is paid only when the terminal confirms the money.</p>
+                </div>
+                <TerminalWaitingPanel payment={openPayment} onChanged={() => void load()} />
+                {role === 'SUPERADMIN' && (
+                  <details open={openPayment.status === 'UNKNOWN'} className="rounded-control bg-subtle p-3 text-sm">
+                    <summary className="cursor-pointer font-semibold text-ink-2">Settle by hand (Superadmin)</summary>
+                    <div className="mt-3">
+                      <ResolveForm payment={openPayment} onDone={() => void load()} />
+                    </div>
+                  </details>
+                )}
+              </div>
             ) : bill ? (
               <div className="space-y-5">
                 <div>
@@ -498,10 +527,19 @@ export function TableCheckoutView({ tableId, onBack }: Props) {
                     { value: 'CASH', label: 'Cash', icon: Banknote },
                     { value: 'UPI_MANUAL', label: 'UPI QR', icon: Smartphone },
                     { value: 'CREDIT', label: 'Credit', icon: HandCoins },
+                    ...(terminal?.enabled ? [{ value: 'TERMINAL' as const, label: 'Paytm', icon: CreditCard }] : []),
                   ]}
                 />
 
-                {method === 'CREDIT' ? (
+                {method === 'TERMINAL' ? (
+                  <TerminalStartPanel
+                    key="terminal"
+                    total={total}
+                    busy={busy}
+                    practice={!!terminal?.practice}
+                    onSend={() => void submitPayment({ method: 'TERMINAL', idempotencyKey: keyRef.current, expectedTotalPaise: total })}
+                  />
+                ) : method === 'CREDIT' ? (
                   <CreditPaymentForm
                     key="credit"
                     total={total}

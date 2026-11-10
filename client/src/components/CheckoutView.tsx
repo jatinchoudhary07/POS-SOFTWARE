@@ -3,6 +3,7 @@ import {
   Banknote,
   CircleAlert,
   CircleCheck,
+  CreditCard,
   HandCoins,
   Loader2,
   Percent,
@@ -26,6 +27,7 @@ import { useUser } from '../state/Auth';
 import { useLiveOrders } from '../state/LiveOrders';
 import { can } from '../state/permissions';
 import { CreditPaymentForm } from './CreditPaymentForm';
+import { isTerminalPayment, TerminalStartPanel, TerminalVoidButton, TerminalWaitingPanel, useTerminalConfig } from './PaytmTerminal';
 import { useReceiptPrinter } from './ReceiptPrinter';
 import { AnimatedValue } from './ui/AnimatedValue';
 import { Button, IconButton } from './ui/Button';
@@ -256,7 +258,7 @@ function RefundForm({ payment, onDone }: { payment: Payment; onDone: (c: Checkou
   );
 }
 
-function ResolveForm({ payment, onDone }: { payment: Payment; onDone: (c: Checkout) => void }) {
+export function ResolveForm({ payment, onDone }: { payment: Payment; onDone: (c: Checkout) => void }) {
   const toast = useToast();
   const [note, setNote] = useState('');
   const [reference, setReference] = useState('');
@@ -410,16 +412,34 @@ function PaidPanel({ checkout, onUpdate, onBack }: { checkout: Checkout; onUpdat
         </Button>
       </div>
       {!refunded && !onCredit && can.refundOrResolve(role) && (
-        <div className="mt-4 flex w-full justify-center">
+        <div className="mt-4 flex w-full flex-col items-center gap-2">
           <RefundForm payment={settled} onDone={onUpdate} />
+          <TerminalVoidButton payment={settled} onDone={() => void api.getCheckout(settled.orderId).then(onUpdate)} />
         </div>
       )}
     </div>
   );
 }
 
-function UncertainPanel({ payment, onUpdate }: { payment: Payment; onUpdate: (c: Checkout) => void }) {
+function UncertainPanel({ payment, onUpdate, onReload }: { payment: Payment; onUpdate: (c: Checkout) => void; onReload: () => void }) {
   const { role } = useUser();
+  if (isTerminalPayment(payment)) {
+    return (
+      <div className="space-y-4">
+        <TerminalWaitingPanel payment={payment} onChanged={onReload} />
+        {can.refundOrResolve(role) ? (
+          <details open={payment.status === 'UNKNOWN'} className="rounded-control bg-subtle p-3 text-sm">
+            <summary className="cursor-pointer font-semibold text-ink-2">Settle by hand (Superadmin)</summary>
+            <div className="mt-3">
+              <ResolveForm payment={payment} onDone={onUpdate} />
+            </div>
+          </details>
+        ) : payment.status === 'UNKNOWN' ? (
+          <p className="text-sm text-ink-2">Ask the Superadmin to check and settle this payment.</p>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="flex gap-3 rounded-control bg-warning-tint p-4 text-warning">
@@ -446,7 +466,8 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
   const toast = useToast();
   const bill = checkout.bill!;
   const total = bill.totalPaise;
-  const [method, setMethod] = useState<'CASH' | 'UPI_MANUAL' | 'CREDIT'>('CASH');
+  const terminal = useTerminalConfig();
+  const [method, setMethod] = useState<'CASH' | 'UPI_MANUAL' | 'CREDIT' | 'TERMINAL'>('CASH');
   const [cash, setCash] = useState('');
   const [upiRef, setUpiRef] = useState('');
   const [verified, setVerified] = useState(false);
@@ -474,6 +495,13 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
     try {
       const r = await api.recordPayment(checkout.order.id, body);
       keyRef.current = newRequestId();
+      if (r.payment.method === 'TERMINAL' && r.payment.status !== 'SUCCEEDED') {
+        // Sent to the terminal: the outcome comes later (or the terminal refused it right away).
+        if (r.payment.status === 'FAILED') toast({ tone: 'error', title: 'Terminal payment did not go through', description: r.payment.failureReason ?? 'The bill is still unpaid.' });
+        else toast({ tone: 'success', title: 'Sent to the terminal', description: 'Waiting for the customer to pay.' });
+        onPaid(r.checkout);
+        return;
+      }
       if (r.payment.status === 'SUCCEEDED') {
         toast({ tone: 'success', title: r.payment.method === 'CREDIT' ? `Put on credit · #${checkout.order.orderNumber}` : `Payment recorded · #${checkout.order.orderNumber}`, description: `${formatPaise(r.payment.amountPaise)} · ${METHOD_LABELS[r.payment.method]}` });
       } else {
@@ -509,6 +537,7 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
           { value: 'CASH', label: 'Cash', icon: Banknote },
           { value: 'UPI_MANUAL', label: 'UPI', icon: Smartphone },
           { value: 'CREDIT', label: 'Credit', icon: HandCoins },
+          ...(terminal?.enabled ? [{ value: 'TERMINAL' as const, label: 'Paytm', icon: CreditCard }] : []),
         ]}
       />
 
@@ -519,7 +548,15 @@ function TakePayment({ checkout, onPaid, onReload }: { checkout: Checkout; onPai
         </p>
       )}
 
-      {method === 'CREDIT' ? (
+      {method === 'TERMINAL' ? (
+        <TerminalStartPanel
+          key="terminal"
+          total={total}
+          busy={busy === 'pay'}
+          practice={!!terminal?.practice}
+          onSend={() => void submit({ method: 'TERMINAL', idempotencyKey: keyRef.current, expectedTotalPaise: total }, 'pay')}
+        />
+      ) : method === 'CREDIT' ? (
         <CreditPaymentForm
           key="credit"
           total={total}
@@ -798,7 +835,7 @@ export function CheckoutView({ orderId, onBack }: { orderId: number; onBack: () 
           {settled ? (
             <PaidPanel checkout={data} onUpdate={setData} onBack={onBack} />
           ) : uncertain ? (
-            <UncertainPanel payment={uncertain} onUpdate={setData} />
+            <UncertainPanel payment={uncertain} onUpdate={setData} onReload={() => void load()} />
           ) : data.bill ? (
             <TakePayment checkout={data} onPaid={setData} onReload={() => void load()} />
           ) : null}

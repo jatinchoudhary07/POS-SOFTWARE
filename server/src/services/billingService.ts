@@ -136,8 +136,33 @@ export interface DailySummaryDTO {
   payments: (PaymentDTO & { orderNumber: string })[];
 }
 
-type BillRow = typeof bills.$inferSelect;
-type PaymentRow = typeof payments.$inferSelect;
+export type BillRow = typeof bills.$inferSelect;
+export type PaymentRow = typeof payments.$inferSelect;
+export type BillingTx = Parameters<Parameters<DB['transaction']>[0]>[0];
+
+/**
+ * What the terminal payment code (payments/paytm) borrows from billing, so the bill and payment rules live in one place.
+ * Nothing here changes how cash, UPI or credit payments work.
+ */
+export interface TerminalKit {
+  /** Same checks as paying an order by hand (not paid, no open attempt, bill open, total unchanged). */
+  assertPayableOrder(tx: BillingTx, orderId: number, expectedTotalPaise: number): BillRow;
+  /** The same for the open bill of a table. Returns the bill and the orders it covers. */
+  assertPayableTable(tx: BillingTx, tableId: number, expectedTotalPaise: number): { bill: BillRow; orderIds: number[] };
+  insertPayment(tx: BillingTx, values: typeof payments.$inferInsert): PaymentRow;
+  markBillPaid(tx: BillingTx, billId: number): void;
+  touchOrder(tx: BillingTx, orderId: number): void;
+  orderIdsOfBill(tx: BillingTx | DB, billId: number, fallbackOrderId: number): number[];
+  publish(orderId: number): void;
+  checkout(orderId: number): CheckoutDTO;
+  checkoutTable(tableId: number): TableCheckoutDTO;
+  toPaymentDTO(row: PaymentRow): PaymentDTO;
+}
+
+/** Called inside the transaction when a person settles an unsure payment by hand, so a terminal attempt can be closed too. */
+export interface PaymentHooks {
+  afterManualResolve?: (tx: BillingTx, payment: PaymentRow, outcome: 'SUCCEEDED' | 'FAILED') => void;
+}
 
 const toBillDTO = (b: BillRow): BillDTO => ({
   id: b.id,
@@ -188,6 +213,7 @@ export interface BillingServiceOptions {
   loadOrder: (id: number) => OrderDTO;
   defaultRestaurantName: string;
   providers?: PaymentProvider[];
+  hooks?: PaymentHooks;
   /** How long to wait for a provider (terminal) before treating the outcome as UNKNOWN. */
   providerTimeoutMs?: number;
   now?: () => Date;
@@ -896,6 +922,7 @@ export function createBillingService(db: DB, events: EventBus, opts: BillingServ
           .where(eq(payments.id, p.id))
           .run();
         if (input.outcome === 'SUCCEEDED') markBillPaid(tx, p.billId);
+        opts.hooks?.afterManualResolve?.(tx, p, input.outcome);
         touchOrder(tx, p.orderId);
         return { row: tx.select().from(payments).where(eq(payments.id, p.id)).get()!, changed: true };
       });
@@ -958,6 +985,41 @@ export function createBillingService(db: DB, events: EventBus, opts: BillingServ
     },
 
     checkoutTable,
+
+    kit: {
+      assertPayableOrder: (tx, orderId, expectedTotalPaise) => assertPayable(tx, orderId, expectedTotalPaise),
+      assertPayableTable(tx, tableId, expectedTotalPaise) {
+        const bill = tx.select().from(bills).where(and(eq(bills.tableId, tableId), eq(bills.status, 'OPEN'))).get();
+        if (!bill) throw new AppError(409, 'BILL_REQUIRED', 'Generate the bill before taking payment');
+        if (bill.totalPaise <= 0) throw new AppError(409, 'ZERO_TOTAL', 'The bill total is ₹0; nothing to pay');
+        if (bill.totalPaise !== expectedTotalPaise) {
+          throw new AppError(409, 'BILL_CHANGED', 'The bill changed since it was shown. Check the new total and try again.', { totalPaise: bill.totalPaise });
+        }
+        const orderIds = tx.select({ orderId: billOrders.orderId }).from(billOrders).where(eq(billOrders.billId, bill.id)).all().map((r) => r.orderId);
+        for (const id of orderIds) {
+          const ord = getOrderRow(tx, id);
+          if (ord.status === 'CANCELLED') throw new AppError(409, 'ORDER_CANCELLED', 'Cancelled orders cannot be paid');
+          const attempts = attemptsFor(tx, id);
+          if (attempts.some((a) => a.status === 'SUCCEEDED')) throw new AppError(409, 'ALREADY_PAID', `Order #${ord.orderNumber} is already paid`);
+          const open = attempts.find((a) => a.status === 'PENDING' || a.status === 'UNKNOWN');
+          if (open) {
+            throw new AppError(409, 'PAYMENT_UNCERTAIN', `Payment ${paymentReference(open.id)} for this bill has an uncertain outcome. Check it and resolve it before taking another payment.`, { paymentId: open.id });
+          }
+        }
+        return { bill, orderIds };
+      },
+      insertPayment: (tx, values) => insertAttempt(tx, values),
+      markBillPaid: (tx, billId) => markBillPaid(tx, billId),
+      touchOrder: (tx, orderId) => touchOrder(tx, orderId),
+      orderIdsOfBill(tx, billId, fallbackOrderId) {
+        const ids = tx.select({ orderId: billOrders.orderId }).from(billOrders).where(eq(billOrders.billId, billId)).all().map((r) => r.orderId);
+        return ids.length > 0 ? ids : [fallbackOrderId];
+      },
+      publish: (orderId) => publish(orderId),
+      checkout: (orderId) => checkout(orderId),
+      checkoutTable: (tableId) => checkoutTable(tableId),
+      toPaymentDTO: (row) => toPaymentDTO(row),
+    } satisfies TerminalKit,
 
     generateTableBill,
 

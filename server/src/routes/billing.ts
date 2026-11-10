@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { requireRole, requireSession } from '../lib/auth';
 import { AppError } from '../lib/errors';
 import type { BillingService } from '../services/billingService';
+import type { PaytmPayments } from '../payments/paytm/service';
+import { scenarioFromName } from '../payments/paytm/setup';
 import {
   generateBillSchema,
   idParamSchema,
@@ -10,6 +12,7 @@ import {
   reportDateSchema,
   resolvePaymentSchema,
   dailyGoalSchema,
+  mockScenarioSchema,
   updateSettingsSchema,
 } from '../validation';
 
@@ -17,7 +20,7 @@ import {
 const staff = requireRole('SUPERADMIN', 'RECEPTION');
 const superadmin = requireRole('SUPERADMIN');
 
-export function orderBillingRouter(billing: BillingService): Router {
+export function orderBillingRouter(billing: BillingService, paytm?: PaytmPayments): Router {
   const router = Router();
 
   router.get('/:id/checkout', staff, (req, res) => {
@@ -35,8 +38,14 @@ export function orderBillingRouter(billing: BillingService): Router {
   router.post('/:id/payments', staff, async (req, res) => {
     const id = idParamSchema.parse(req.params.id);
     const input = recordPaymentSchema.parse(req.body);
+    // A terminal payment answers as soon as the terminal has the request (the customer then pays on the terminal), so it
+    // never holds this request open; the outcome arrives by status checks.
     const result =
-      input.method === 'TERMINAL' ? await billing.startProviderPayment(id, input) : billing.recordManualPayment(id, input);
+      input.method === 'TERMINAL'
+        ? paytm
+          ? await paytm.startForOrder(id, input)
+          : await billing.startProviderPayment(id, input)
+        : billing.recordManualPayment(id, input);
     res.status(result.duplicate ? 200 : 201).json(result);
   });
 
@@ -48,8 +57,24 @@ export function orderBillingRouter(billing: BillingService): Router {
 }
 
 /** /api/payments/:id/... — Superadmin-only corrections. */
-export function paymentsRouter(billing: BillingService): Router {
+export function paymentsRouter(billing: BillingService, paytm?: PaytmPayments): Router {
   const router = Router();
+  const terminal = () => {
+    if (!paytm) throw new AppError(409, 'TERMINAL_NOT_ENABLED', 'Terminal payments are not turned on');
+    return paytm;
+  };
+  // Where a terminal payment stands (read by the checkout screen while it waits).
+  router.get('/:id/terminal', staff, (req, res) => {
+    res.json({ terminal: terminal().summary(idParamSchema.parse(req.params.id)) });
+  });
+  // "Check now": ask the terminal service about this payment.
+  router.post('/:id/terminal-check', staff, async (req, res) => {
+    res.json({ terminal: await terminal().check(idParamSchema.parse(req.params.id)) });
+  });
+  // Same-day void of a successful terminal payment (Superadmin).
+  router.post('/:id/terminal-void', superadmin, async (req, res) => {
+    res.json({ terminal: await terminal().voidPayment(idParamSchema.parse(req.params.id)) });
+  });
   router.post('/:id/resolve', superadmin, (req, res) => {
     res.json(billing.resolvePayment(idParamSchema.parse(req.params.id), resolvePaymentSchema.parse(req.body)));
   });
@@ -59,8 +84,19 @@ export function paymentsRouter(billing: BillingService): Router {
   return router;
 }
 
-export function settingsRouter(billing: BillingService): Router {
+export function settingsRouter(billing: BillingService, paytm?: PaytmPayments): Router {
   const router = Router();
+  // Whether the checkout screens offer the card/UPI terminal. Never contains a secret.
+  router.get('/payments', staff, (_req, res) => {
+    res.json({ terminal: paytm ? paytm.capabilities() : { enabled: false } });
+  });
+  // Practice mode only (the pretend terminal): choose what it does with the next payments.
+  router.put('/payments/mock-scenario', superadmin, (req, res) => {
+    if (!paytm || paytm.mode !== 'mock') throw new AppError(409, 'NOT_MOCK', 'There is no practice terminal to script');
+    const body = mockScenarioSchema.parse(req.body);
+    paytm.setMockScenario(scenarioFromName(body.scenario, body.afterPolls));
+    res.json({ terminal: paytm.capabilities(), scenario: body.scenario });
+  });
   router.get('/', staff, (_req, res) => {
     res.json({ settings: billing.getSettings() });
   });

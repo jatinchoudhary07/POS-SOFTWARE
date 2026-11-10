@@ -5,7 +5,7 @@ import { cx } from '../../lib/cx';
 export const METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: 'Cash',
   UPI_MANUAL: 'UPI (manual check)',
-  TERMINAL: 'Terminal',
+  TERMINAL: 'Paytm terminal',
   CREDIT: 'On credit',
 };
 

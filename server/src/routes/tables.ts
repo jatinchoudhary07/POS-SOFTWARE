@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { requireRole, requireSession } from '../lib/auth';
+import { AppError } from '../lib/errors';
+import type { PaytmPayments } from '../payments/paytm/service';
 import type { BillingService } from '../services/billingService';
 import type { TablesService } from '../services/tablesService';
 import {
@@ -14,7 +16,7 @@ import {
 const staff = requireRole('SUPERADMIN', 'RECEPTION');
 const superadmin = requireRole('SUPERADMIN');
 
-export function tablesRouter(tables: TablesService, billing: BillingService): Router {
+export function tablesRouter(tables: TablesService, billing: BillingService, paytm?: PaytmPayments): Router {
   const router = Router();
 
   // Reception needs the list to pick a table; also includes detailed diningTables for tiles/selector.
@@ -75,11 +77,14 @@ export function tablesRouter(tables: TablesService, billing: BillingService): Ro
     res.json(billing.generateTableBill(id, generateBillSchema.parse(req.body ?? {}), { canChangeDiscount }));
   });
 
-  router.post('/:id/payments', staff, (req, res) => {
+  router.post('/:id/payments', staff, async (req, res) => {
     const id = idParamSchema.parse(req.params.id);
     const input = recordPaymentSchema.parse(req.body);
     if (input.method === 'TERMINAL') {
-      throw new Error('Terminal payment not supported for table checkout yet');
+      if (!paytm) throw new AppError(400, 'PROVIDER_NOT_CONFIGURED', 'No payment terminal is connected. Use cash or manual UPI.');
+      const started = await paytm.startForTable(id, input);
+      res.status(started.duplicate ? 200 : 201).json(started);
+      return;
     }
     const result = billing.recordTablePayment(id, input);
     res.status(result.duplicate ? 200 : 201).json(result);

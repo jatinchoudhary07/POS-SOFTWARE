@@ -26,6 +26,9 @@ import type {
   PaymentRequest,
   Receipt,
   Settings,
+  PaymentsConfig,
+  TerminalAttempt,
+  MockScenarioName,
   TableCheckoutDTO,
   TableDetailDTO,
   TableDTO,
@@ -146,6 +149,15 @@ export const api = {
     }),
 
   getSettings: () => request<{ settings: Settings }>('/settings').then((r) => r.settings),
+  /** Is the card/UPI terminal available? */
+  getPaymentsConfig: () => request<PaymentsConfig>('/settings/payments'),
+  getTerminalAttempt: (paymentId: number) => request<{ terminal: TerminalAttempt }>(`/payments/${paymentId}/terminal`).then((r) => r.terminal),
+  /** "Check now": ask the terminal service about this payment. */
+  checkTerminalPayment: (paymentId: number) => request<{ terminal: TerminalAttempt }>(`/payments/${paymentId}/terminal-check`, { method: 'POST', body: '{}' }).then((r) => r.terminal),
+  /** Superadmin: cancel a successful terminal payment on the day it was taken. */
+  voidTerminalPayment: (paymentId: number) => request<{ terminal: TerminalAttempt }>(`/payments/${paymentId}/terminal-void`, { method: 'POST', body: '{}' }).then((r) => r.terminal),
+  /** Practice mode only (Superadmin): what the pretend terminal does next. */
+  setMockScenario: (scenario: MockScenarioName) => request<{ scenario: MockScenarioName }>('/settings/payments/mock-scenario', { method: 'PUT', body: JSON.stringify({ scenario }) }),
   /** The daily sales goal shared by every device (paise). Only the Superadmin can change it. */
   getDailyGoal: () => request<{ dailyGoalPaise: number }>('/settings/daily-goal').then((r) => r.dailyGoalPaise),
   setDailyGoal: (dailyGoalPaise: number) =>

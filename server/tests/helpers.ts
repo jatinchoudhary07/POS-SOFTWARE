@@ -31,7 +31,7 @@ export function setupTestApp(opts: Omit<AppOptions, 'db' | 'events'> & { seedUse
   runMigrations(db);
   seed(db, { menu: sampleMenu });
   const events = new EventBus();
-  const { app, auth } = createApp({ db, events, ...appOpts });
+  const { app, auth, paytm } = createApp({ db, events, ...appOpts });
 
   const cookies = {} as Record<UserRole, string>;
   if (seedUsers) {
@@ -59,7 +59,7 @@ export function setupTestApp(opts: Omit<AppOptions, 'db' | 'events'> & { seedUse
     return { get: make('get'), post: make('post'), put: make('put'), patch: make('patch'), delete: make('delete') };
   };
 
-  return { app, db, sqlite, events, auth, cookies, api: client(cookies.SUPERADMIN), as: (role: UserRole) => client(cookies[role]), anon: client() };
+  return { app, db, sqlite, events, auth, paytm, cookies, api: client(cookies.SUPERADMIN), as: (role: UserRole) => client(cookies[role]), anon: client() };
 }
 
 let counter = 0;

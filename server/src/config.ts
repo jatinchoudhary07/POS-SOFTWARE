@@ -39,6 +39,14 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().default(''),
   VAPID_PRIVATE_KEY: z.string().default(''),
   VAPID_SUBJECT: z.string().default(''),
+  // Paytm card/UPI terminal. OFF unless PAYTM_ENABLED=true. Stage 1 only has the practice (mock) terminal.
+  PAYTM_ENABLED: z.enum(['true', 'false']).default('false'),
+  PAYTM_MODE: z.enum(['mock', 'live']).default('mock'),
+  PAYTM_MOCK_SCENARIO: z.enum(['SUCCESS', 'CUSTOMER_CANCEL', 'BANK_REJECT', 'TERMINAL_OFFLINE', 'SALE_TIMEOUT', 'ACCEPTED_NO_RESULT', 'DUPLICATE_ID', 'TERMINAL_BUSY', 'INVALID_CHECKSUM', 'MISMATCH_AMOUNT', 'MISMATCH_MID', 'MISMATCH_TID']).default('SUCCESS'),
+  PAYTM_POLL_FAST_MS: z.coerce.number().int().min(200).max(60_000).default(3000),
+  PAYTM_POLL_SLOW_MS: z.coerce.number().int().min(500).max(300_000).default(10_000),
+  PAYTM_MAX_WAIT_MINUTES: z.coerce.number().min(1).max(60).default(10),
+  PAYTM_SALE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
 });
 
 const env = envSchema.parse(process.env);
@@ -73,5 +81,14 @@ export const config = {
     .map((o) => o.trim())
     .filter(Boolean),
   trustProxy: env.TRUST_PROXY || false,
+  paytm: {
+    enabled: env.PAYTM_ENABLED === 'true',
+    mode: env.PAYTM_MODE,
+    mockScenario: env.PAYTM_MOCK_SCENARIO,
+    pollFastMs: env.PAYTM_POLL_FAST_MS,
+    pollSlowMs: env.PAYTM_POLL_SLOW_MS,
+    maxWaitMinutes: env.PAYTM_MAX_WAIT_MINUTES,
+    saleTimeoutMs: env.PAYTM_SALE_TIMEOUT_MS,
+  },
   push: { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT || undefined },
 };

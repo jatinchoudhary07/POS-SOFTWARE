@@ -11,6 +11,7 @@ import { currentSession, loadSession, requireRole, sameOriginWrites } from './li
 import type { LoginLimiter } from './lib/loginLimiter';
 import { AppError } from './lib/errors';
 import type { PaymentProvider } from './payments/provider';
+import { createPaytmPayments, type PaytmOptions } from './payments/paytm/service';
 import { authRouter } from './routes/auth';
 import { orderBillingRouter, paymentsRouter, reportsRouter, settingsRouter } from './routes/billing';
 import { menuRouter } from './routes/menu';
@@ -18,7 +19,7 @@ import { analyticsRouter } from './routes/analytics';
 import { tablesRouter } from './routes/tables';
 import { kitchenRouter, ordersRouter } from './routes/orders';
 import { createAuthService } from './services/authService';
-import { createBillingService } from './services/billingService';
+import { createBillingService, type PaymentHooks } from './services/billingService';
 import { createMenuService } from './services/menuService';
 import { createAnalyticsService } from './services/analyticsService';
 import { createTablesService } from './services/tablesService';
@@ -48,6 +49,8 @@ export interface AppOptions {
   /** Payment devices. None in production yet (no verified terminal integration). */
   paymentProviders?: PaymentProvider[];
   providerTimeoutMs?: number;
+  /** Card/UPI terminal (Paytm). Left out = switched off. Stage 1 accepts only the practice terminal. */
+  paytm?: PaytmOptions;
   /** Express trust proxy configuration for hosting platforms behind reverse proxies */
   trustProxy?: boolean | string | number;
   /** Alerts for locked phones. Left out = switched off. */
@@ -73,6 +76,7 @@ export function createApp({
   defaultRestaurantName = 'My Restaurant',
   paymentProviders = [],
   providerTimeoutMs,
+  paytm: paytmOptions,
   trustProxy,
   push: pushOptions,
 }: AppOptions) {
@@ -82,13 +86,18 @@ export function createApp({
   }
   const menu = createMenuService(db);
   const orders = createOrderService(db, events, now);
+  const hooks: PaymentHooks = {};
   const billing = createBillingService(db, events, {
     loadOrder: orders.getById,
     defaultRestaurantName,
     providers: paymentProviders,
     providerTimeoutMs,
+    hooks,
     now,
   });
+  // The terminal code settles through billing's own rules; billing tells it when a person settles a payment by hand.
+  const paytm = paytmOptions ? createPaytmPayments(db, billing.kit, paytmOptions, now) : undefined;
+  if (paytm) hooks.afterManualResolve = paytm.hooks.afterManualResolve;
   const auth = createAuthService(db, events, { idleMs: sessionIdleMs, maxMs: sessionMaxMs, now, limiter: loginLimiter, ipLimiter: ipLoginLimiter });
 
   // Alerts to phones that are locked or have the app in the background (see services/pushService.ts).
@@ -122,12 +131,12 @@ export function createApp({
   app.use('/api/push', pushRouter(push));
   app.use('/api/menu', menuRouter(menu));
   const tablesService = createTablesService(db, { loadOrder: orders.getById, events });
-  app.use('/api/tables', tablesRouter(tablesService, billing));
+  app.use('/api/tables', tablesRouter(tablesService, billing, paytm));
   app.use('/api/orders', ordersRouter(orders));
-  app.use('/api/orders', orderBillingRouter(billing));
+  app.use('/api/orders', orderBillingRouter(billing, paytm));
   app.use('/api/kitchen', kitchenRouter(orders));
-  app.use('/api/payments', paymentsRouter(billing));
-  app.use('/api/settings', settingsRouter(billing));
+  app.use('/api/payments', paymentsRouter(billing, paytm));
+  app.use('/api/settings', settingsRouter(billing, paytm));
   app.use('/api/reports', reportsRouter(billing));
   app.use('/api/credit', creditRouter(createCreditService(db, now)));
   app.use('/api/reports', analyticsRouter(createAnalyticsService(db)));
@@ -180,7 +189,7 @@ export function createApp({
   };
   app.use(errorHandler);
 
-  return { app, events, auth };
+  return { app, events, auth, paytm };
 }
 
 // STATIC_DIR lets a bundled build (server/dist) point at the built front end.

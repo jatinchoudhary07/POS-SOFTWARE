@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createApp, defaultStaticDir } from './app';
 import { createBackupService } from './backup/backupService';
 import { config } from './config';
+import { buildPaytmOptions } from './payments/paytm/setup';
 import { openDatabase, runMigrations } from './db/client';
 import { attachRealtime } from './realtime';
 
@@ -30,7 +31,16 @@ if (dbExisted) {
 // Apply pending migrations on every start so the database is never behind the code.
 runMigrations(db);
 
-const { app, events, auth } = createApp({
+// Card/UPI terminal: OFF unless PAYTM_ENABLED=true; refuses to start in a state that could mislead (live not built, practice in production).
+let paytmOptions;
+try {
+  paytmOptions = buildPaytmOptions(config.paytm, config.env);
+} catch (e) {
+  console.error(`Cannot start: ${(e as Error).message}`);
+  process.exit(1);
+}
+
+const { app, events, auth, paytm } = createApp({
   db,
   corsOrigins: config.corsOrigins,
   staticDir: defaultStaticDir,
@@ -43,7 +53,10 @@ const { app, events, auth } = createApp({
   push: config.push,
   // No payment terminal is integrated yet; cash and manually verified UPI need no provider.
   paymentProviders: [],
+  paytm: paytmOptions,
 });
+// Pick up any terminal payment left unfinished by a restart, then keep checking the ones that are waiting.
+paytm?.start();
 
 // HTTPS if a certificate is configured (npm run tls:setup), otherwise plain HTTP.
 let server: http.Server;
@@ -126,6 +139,7 @@ function shutdown() {
   shuttingDown = true;
   console.log('Shutting down: saving a final backup…');
   backups.stop();
+  paytm?.stop();
   // Never hang on shutdown: give the final backup a few seconds at most.
   const finalBackup = Promise.race([backups.tryBackup('shutdown', { onlyIfChanged: true }), new Promise((r) => setTimeout(r, 5000))]);
   void finalBackup.then(() =>
