@@ -2,18 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { hourWindow } from './dates';
 
 describe('hourWindow (which hours the sales-by-hour chart shows)', () => {
-  it('starts at the first hour with a sale, not at a fixed earlier hour', () => {
-    expect(hourWindow([11, 12, 13, 19]).lo).toBe(11); // a cafe that opened at 11 shows 11, not 9 or 10
-    expect(hourWindow([9, 15]).lo).toBe(9); // and an early one still shows its early hour
+  it('always shows the full trading day, 11am to 11pm, however the day went', () => {
+    expect(hourWindow([])).toEqual({ lo: 11, hi: 23 }); // a day with no sales yet
+    expect(hourWindow([11, 12, 13, 19])).toEqual({ lo: 11, hi: 23 }); // opened at 11
+    expect(hourWindow([14, 15])).toEqual({ lo: 11, hi: 23 }); // first sale only at 2pm: the axis does not move
+    expect(hourWindow([11])).toEqual({ lo: 11, hi: 23 }); // today, right after the first sale
   });
 
-  it('ends at the last hour with a sale, and never looks cramped', () => {
-    expect(hourWindow([11, 12, 21]).hi).toBe(21);
-    expect(hourWindow([11]).hi).toBe(17); // one sale: still a few bars to read
-    expect(hourWindow([22, 23])).toEqual({ lo: 22, hi: 23 }); // never past midnight
+  it('stretches to include any sale outside those hours, so nothing is ever hidden', () => {
+    expect(hourWindow([8, 11, 15])).toEqual({ lo: 8, hi: 23 }); // opened early at 8am
+    expect(hourWindow([12, 18, 0])).toEqual({ lo: 0, hi: 23 }); // a sale just after midnight
+    expect(hourWindow([9, 23])).toEqual({ lo: 9, hi: 23 });
   });
 
-  it('shows a normal trading day when there were no sales', () => {
-    expect(hourWindow([])).toEqual({ lo: 10, hi: 20 });
+  it('puts every hour that has a sale inside the window, for any day', () => {
+    for (let h = 0; h < 24; h++) {
+      const { lo, hi } = hourWindow([h]);
+      expect(lo).toBeLessThanOrEqual(h);
+      expect(hi).toBeGreaterThanOrEqual(h);
+    }
   });
 });

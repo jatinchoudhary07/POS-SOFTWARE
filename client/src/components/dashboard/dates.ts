@@ -38,16 +38,20 @@ export function presetRange(p: Exclude<Preset, 'custom'>): { from: string; to: s
   }
 }
 
+/** The cafe trades from 11am to 11pm. The hourly chart always shows at least these hours. */
+export const TRADING_FIRST_HOUR = 11;
+export const TRADING_LAST_HOUR = 23;
+
 /**
- * Which hours the hourly chart covers. It starts at the first hour that actually had a sale (a cafe that opened at 11
- * shows 11, not a fixed earlier hour) and ends at the last one, with at least a few bars so it never looks cramped.
- * A day with no sales shows a normal trading day (10am to 8pm).
+ * Which hours the hourly chart covers: always the full trading day (11am to 11pm), so the picture looks the same
+ * every day, and wider only when a sale happened outside those hours (an 8am order shows from 8am, a midnight one
+ * to midnight). Every sale is always on the chart, whatever hour the cafe really opened or closed that day.
  */
 export function hourWindow(activeHours: number[]): { lo: number; hi: number } {
-  if (activeHours.length === 0) return { lo: 10, hi: 20 };
-  const lo = Math.min(...activeHours);
-  const last = Math.max(...activeHours);
-  return { lo, hi: Math.min(23, Math.max(last, lo + 6)) };
+  return {
+    lo: Math.min(TRADING_FIRST_HOUR, ...activeHours),
+    hi: Math.max(TRADING_LAST_HOUR, ...activeHours),
+  };
 }
 
 export const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`;
