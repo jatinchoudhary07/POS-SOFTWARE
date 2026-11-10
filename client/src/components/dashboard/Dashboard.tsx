@@ -30,7 +30,7 @@ import { useLiveOrders } from '../../state/LiveOrders';
 import { Button, IconButton } from '../ui/Button';
 import { inputClass } from '../ui/fields';
 import { Card, Columns, compactRupees, Delta, RankBars, SERIES, Split } from './charts';
-import { fromKey, hourLabel, PRESET_LABELS, presetRange, shortDate, shiftDay, toKey, type Preset } from './dates';
+import { fromKey, hourLabel, hourWindow, PRESET_LABELS, presetRange, shortDate, shiftDay, toKey, type Preset } from './dates';
 import { CreditBook } from '../CreditBook';
 import { OrderHistory } from './OrderHistory';
 
@@ -362,8 +362,7 @@ function Overview({
 
   // Hourly range calculation
   const active = data.byHour.map((h, i) => (h.count > 0 ? i : -1)).filter((i) => i >= 0);
-  const h0 = Math.max(0, Math.min(9, (active[0] ?? 9) - 1));
-  const h1 = Math.min(23, Math.max(21, (active[active.length - 1] ?? 21) + 1));
+  const { lo: h0, hi: h1 } = hourWindow(active);
 
   // Chart datasets
   const hourlyRevenueData = data.byHour.slice(h0, h1 + 1).map((h, i) => ({

@@ -183,7 +183,7 @@ export const api = {
     request<{ summary: DailySummary }>(`/reports/daily?date=${encodeURIComponent(date)}`).then((r) => r.summary),
 
   analytics: (from: string, to: string) =>
-    request<{ analytics: Analytics }>(`/reports/analytics?from=${from}&to=${to}`).then((r) => r.analytics),
+    request<{ analytics: Analytics }>(`/reports/analytics?from=${from}&to=${to}&tz=${new Date().getTimezoneOffset()}`).then((r) => r.analytics),
 
   orderHistory: (query: HistoryQuery) => {
     const q = new URLSearchParams();

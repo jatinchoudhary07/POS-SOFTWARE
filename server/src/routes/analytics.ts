@@ -15,6 +15,8 @@ const dateKey = z
   }, 'Not a real date');
 
 const rangeQuery = z.object({ from: dateKey, to: dateKey });
+// The viewer's timezone as the browser reports it (minutes behind UTC: India is -330), so "11am" means 11am where they are.
+const analyticsQuery = rangeQuery.extend({ tz: z.coerce.number().int().min(-840).max(840).optional() });
 const historyQuery = rangeQuery.extend({
   q: z.string().trim().max(60).optional(),
   payment: z.enum([...ORDER_PAYMENT_STATUSES, 'CANCELLED']).optional(),
@@ -27,8 +29,8 @@ const historyQuery = rangeQuery.extend({
 export function analyticsRouter(analytics: AnalyticsService): Router {
   const router = Router();
   router.get('/analytics', requireRole('SUPERADMIN'), (req, res) => {
-    const { from, to } = rangeQuery.parse(req.query);
-    res.json({ analytics: analytics.analytics(from, to) });
+    const { from, to, tz } = analyticsQuery.parse(req.query);
+    res.json({ analytics: analytics.analytics(from, to, tz) });
   });
 
   router.get('/history', requireRole('SUPERADMIN'), (req, res) => {

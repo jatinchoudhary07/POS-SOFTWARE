@@ -24,7 +24,7 @@ import { formatPaise } from '../../lib/money';
 import { useUser } from '../../state/Auth';
 import { useLiveOrders } from '../../state/LiveOrders';
 import { can } from '../../state/permissions';
-import { fromKey, hourLabel, presetRange, PRESET_LABELS, shiftDay, shortDate, toKey, type Preset } from './dates';
+import { fromKey, hourLabel, hourWindow, presetRange, PRESET_LABELS, shiftDay, shortDate, toKey, type Preset } from './dates';
 import { CreditBook } from '../CreditBook';
 import { BADGE, fromLive, SalesHistory } from './SalesHistory';
 import { useCountUp } from './useCountUp';
@@ -325,8 +325,7 @@ export function PhoneSalesDashboard({ onOpenOrder }: Props) {
     if (analytics) analytics.byHour.forEach((b, h) => (perHour[h] = b?.totalPaise ?? 0));
     else for (const p of daily?.payments ?? []) if (p.status === 'SUCCEEDED') perHour[new Date(p.completedAt ?? p.createdAt).getHours()] += p.amountPaise;
     const active = perHour.map((v, h) => (v > 0 ? h : -1)).filter((h) => h >= 0);
-    const lo = Math.max(0, Math.min(10, active[0] ?? 10));
-    const hi = Math.min(23, Math.max(20, active[active.length - 1] ?? 20));
+    const { lo, hi } = hourWindow(active);
     return perHour.slice(lo, hi + 1).map((value, i) => ({ label: hourLabel(lo + i).replace(' ', '').toLowerCase(), value }));
   }, [analytics, daily]);
 

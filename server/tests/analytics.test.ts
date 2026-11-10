@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { menuItems } from '../src/db/schema';
+import { menuItems, payments } from '../src/db/schema';
 import { dayKey } from '../src/services/analyticsService';
 import { requestId, setupTestApp } from './helpers';
 
@@ -63,5 +63,24 @@ describe('owner analytics', () => {
     expect((await ctx.api.get('/api/reports/analytics?from=2026-02-31&to=2026-03-01')).status).toBe(400);
     expect((await ctx.api.get('/api/reports/analytics?from=2026-03-05&to=2026-03-01')).status).toBe(400);
     expect((await ctx.api.get('/api/reports/analytics?from=2020-01-01&to=2026-03-01')).status).toBe(400);
+  });
+
+  it('puts each sale in the hour it happened where the viewer is, whatever the server clock says', async () => {
+    const ctx = setupTestApp();
+    await paidOrder(ctx, 'Paneer Tikka', 1);
+    // the payment went through at 11:00 in India (05:30 UTC), mid-day on a date well inside the range asked for
+    const at = new Date(Date.UTC(2026, 10, 9, 5, 30));
+    ctx.db.update(payments).set({ completedAt: at }).run();
+    const key = (d: Date) => dayKey(d);
+    const from = key(new Date(Date.UTC(2026, 10, 7)));
+    const to = key(new Date(Date.UTC(2026, 10, 11)));
+    const hourOf = async (tz?: number) => {
+      const res = await ctx.api.get(`/api/reports/analytics?from=${from}&to=${to}${tz === undefined ? '' : `&tz=${tz}`}`).expect(200);
+      return res.body.analytics.byHour.map((h: { count: number }, i: number) => (h.count > 0 ? i : -1)).filter((i: number) => i >= 0);
+    };
+    expect(await hourOf(-330)).toEqual([11]); // a phone in India (browser reports -330)
+    expect(await hourOf(0)).toEqual([5]); // someone viewing in UTC
+    expect(await hourOf(300)).toEqual([0]); // New York in winter (UTC-5): 00:30
+    await ctx.api.get(`/api/reports/analytics?from=${from}&to=${to}&tz=99999`).expect(400); // not a real offset
   });
 });

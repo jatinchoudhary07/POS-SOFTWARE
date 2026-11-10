@@ -113,7 +113,12 @@ export function createAnalyticsService(db: DB) {
   }
 
   return {
-    analytics(fromKey: string, toKey: string): AnalyticsDTO {
+    analytics(fromKey: string, toKey: string, tzOffsetMinutes?: number): AnalyticsDTO {
+      // Hour and weekday of a sale in the viewer's timezone (the server's own clock is used when none is given).
+      const local = (d: Date) => (tzOffsetMinutes === undefined ? { hour: d.getHours(), weekday: d.getDay() } : (() => {
+        const s = new Date(d.getTime() - tzOffsetMinutes * 60_000);
+        return { hour: s.getUTCHours(), weekday: s.getUTCDay() };
+      })());
       const { start, end, days } = range(fromKey, toKey);
       const current = totals(start, end);
       const previous = totals(new Date(start.getFullYear(), start.getMonth(), start.getDate() - days), start);
@@ -141,10 +146,11 @@ export function createAnalyticsService(db: DB) {
           day.netPaise += p.amountPaise;
           day.orders++;
         }
-        byHour[at.getHours()].count++;
-        byHour[at.getHours()].totalPaise += p.amountPaise;
-        byWeekday[at.getDay()].count++;
-        byWeekday[at.getDay()].totalPaise += p.amountPaise;
+        const when = local(at);
+        byHour[when.hour].count++;
+        byHour[when.hour].totalPaise += p.amountPaise;
+        byWeekday[when.weekday].count++;
+        byWeekday[when.weekday].totalPaise += p.amountPaise;
         byMethod[p.method].count++;
         byMethod[p.method].totalPaise += p.amountPaise;
         byType[o.orderType].count++;
